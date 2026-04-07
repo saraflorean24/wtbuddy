@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  wtbuddy-db:
+    image: postgis/postgis:13-3.1-alpine
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: wtbuddy
+      POSTGRES_DB: wtbuddy
+      POSTGRES_PASSWORD: wtbuddy123
+    volumes:
+      - wtbuddy-db-vol:/var/lib/postgresql/data
+
+volumes:
+  wtbuddy-db-vol:
