@@ -1,0 +1,104 @@
+package com.wtbuddy.wtbuddy.service;
+
+import com.wtbuddy.wtbuddy.dto.request.LoginRequest;
+import com.wtbuddy.wtbuddy.dto.request.RegisterRequest;
+import com.wtbuddy.wtbuddy.dto.response.AuthResponse;
+import com.wtbuddy.wtbuddy.entity.User;
+import com.wtbuddy.wtbuddy.entity.UserProfile;
+import com.wtbuddy.wtbuddy.enums.Role;
+import com.wtbuddy.wtbuddy.exception.AlreadyExistsException;
+import com.wtbuddy.wtbuddy.exception.BadRequestException;
+import com.wtbuddy.wtbuddy.repository.UserProfileRepository;
+import com.wtbuddy.wtbuddy.repository.UserRepository;
+import com.wtbuddy.wtbuddy.security.JwtService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+public class AuthService {
+
+    private final UserRepository userRepository;
+    private final UserProfileRepository userProfileRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+    private final AuthenticationManager authenticationManager;
+
+    @Transactional
+    public AuthResponse register(RegisterRequest request) {
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new AlreadyExistsException("Email already in use");
+        }
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new AlreadyExistsException("Username already in use");
+        }
+
+        User user = User.builder()
+                .email(request.getEmail())
+                .username(request.getUsername())
+                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .role(Role.USER)
+                .isActive(true)
+                .build();
+
+        userRepository.save(user);
+
+        UserProfile profile = UserProfile.builder()
+                .user(user)
+                .fullName(request.getFullName())
+                .build();
+
+        userProfileRepository.save(profile);
+
+        String token = jwtService.generateToken(
+                org.springframework.security.core.userdetails.User.builder()
+                        .username(user.getEmail())
+                        .password(user.getPasswordHash())
+                        .roles(user.getRole().name())
+                        .build()
+        );
+
+        return AuthResponse.builder()
+                .token(token)
+                .email(user.getEmail())
+                .username(user.getUsername())
+                .role(user.getRole().name())
+                .build();
+    }
+
+    public AuthResponse login(LoginRequest request) {
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.getEmail(),
+                            request.getPassword()
+                    )
+            );
+        } catch (AuthenticationException e) {
+            throw new BadRequestException("Invalid email or password");
+        }
+
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new BadRequestException("Invalid email or password"));
+
+        String token = jwtService.generateToken(
+                org.springframework.security.core.userdetails.User.builder()
+                        .username(user.getEmail())
+                        .password(user.getPasswordHash())
+                        .roles(user.getRole().name())
+                        .build()
+        );
+
+        return AuthResponse.builder()
+                .token(token)
+                .email(user.getEmail())
+                .username(user.getUsername())
+                .role(user.getRole().name())
+                .build();
+    }
+}
