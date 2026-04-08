@@ -24,6 +24,7 @@ public class FriendshipService {
 
     private final FriendshipRepository friendshipRepository;
     private final UserRepository userRepository;
+    private final EmailService emailService;
 
     @Transactional
     public FriendshipResponse sendRequest(FriendshipRequest request, String email) {
@@ -48,6 +49,7 @@ public class FriendshipService {
                 .build();
 
         friendshipRepository.save(friendship);
+        emailService.sendFriendRequestEmail(addressee.getEmail(), requester.getUsername());
         return mapToResponse(friendship);
     }
 
@@ -72,6 +74,11 @@ public class FriendshipService {
         friendship.setStatus(request.getStatus());
         friendship.setUpdatedBy(currentUser);
         friendshipRepository.save(friendship);
+
+        if (request.getStatus() == FriendshipStatus.ACCEPTED) {
+            emailService.sendFriendAcceptedEmail(friendship.getRequester().getEmail(), currentUser.getUsername());
+        }
+
         return mapToResponse(friendship);
     }
 
