@@ -1,8 +1,8 @@
 package com.wtbuddy.wtbuddy.controller;
 
-import com.wtbuddy.wtbuddy.dto.request.LoginRequest;
-import com.wtbuddy.wtbuddy.dto.request.RegisterRequest;
-import com.wtbuddy.wtbuddy.dto.response.AuthResponse;
+import com.wtbuddy.wtbuddy.dto.request.auth.LoginRequest;
+import com.wtbuddy.wtbuddy.dto.request.auth.RegisterRequest;
+import com.wtbuddy.wtbuddy.dto.response.auth.AuthResponse;
 import com.wtbuddy.wtbuddy.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

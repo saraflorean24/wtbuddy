@@ -1,4 +1,4 @@
-package com.wtbuddy.wtbuddy.dto.request;
+package com.wtbuddy.wtbuddy.dto.request.auth;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

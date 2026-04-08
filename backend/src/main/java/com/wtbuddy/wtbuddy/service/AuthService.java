@@ -1,8 +1,8 @@
 package com.wtbuddy.wtbuddy.service;
 
-import com.wtbuddy.wtbuddy.dto.request.LoginRequest;
-import com.wtbuddy.wtbuddy.dto.request.RegisterRequest;
-import com.wtbuddy.wtbuddy.dto.response.AuthResponse;
+import com.wtbuddy.wtbuddy.dto.request.auth.LoginRequest;
+import com.wtbuddy.wtbuddy.dto.request.auth.RegisterRequest;
+import com.wtbuddy.wtbuddy.dto.response.auth.AuthResponse;
 import com.wtbuddy.wtbuddy.entity.User;
 import com.wtbuddy.wtbuddy.entity.UserProfile;
 import com.wtbuddy.wtbuddy.enums.Role;

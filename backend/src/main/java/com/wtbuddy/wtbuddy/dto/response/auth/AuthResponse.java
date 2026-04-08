@@ -1,4 +1,4 @@
-package com.wtbuddy.wtbuddy.dto.response;
+package com.wtbuddy.wtbuddy.dto.response.auth;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
