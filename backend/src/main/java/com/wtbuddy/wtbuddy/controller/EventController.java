@@ -55,6 +55,13 @@ public class EventController {
         return ResponseEntity.ok(eventService.getEventsByOrganizer(organizerId, pageable));
     }
 
+    @PostMapping("/{id}/join")
+    public ResponseEntity<EventResponse> joinEvent(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(eventService.joinEvent(id, userDetails.getUsername()));
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<EventResponse> updateEvent(
             @PathVariable Long id,
