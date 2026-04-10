@@ -1,6 +1,73 @@
-* {
-  box-sizing: border-box;
+/* ── Purple / Lilac palette ─────────────────────────────────────────────── */
+:root {
+  --purple:        #7c3aed;
+  --purple-dark:   #6d28d9;
+  --purple-darker: #5b21b6;
+  --purple-light:  #8b5cf6;
+  --purple-pale:   #ede9fe;
+
+  /* Override Bootstrap primary → purple */
+  --bs-primary:           #7c3aed;
+  --bs-primary-rgb:       124, 58, 237;
+  --bs-link-color:        #7c3aed;
+  --bs-link-color-rgb:    124, 58, 237;
+  --bs-link-hover-color:  #6d28d9;
+
+  /* Override Bootstrap dark (used by table-dark, navbar-dark) → deep purple */
+  --bs-dark:          #3b0764;
+  --bs-dark-rgb:      59, 7, 100;
 }
+
+/* btn-primary uses its own component variables in BS 5.3 */
+.btn-primary {
+  --bs-btn-bg:               #7c3aed;
+  --bs-btn-border-color:     #7c3aed;
+  --bs-btn-hover-bg:         #6d28d9;
+  --bs-btn-hover-border-color: #6d28d9;
+  --bs-btn-active-bg:        #5b21b6;
+  --bs-btn-active-border-color: #5b21b6;
+  --bs-btn-disabled-bg:      #7c3aed;
+  --bs-btn-disabled-border-color: #7c3aed;
+}
+
+.btn-outline-primary {
+  --bs-btn-color:            #7c3aed;
+  --bs-btn-border-color:     #7c3aed;
+  --bs-btn-hover-bg:         #7c3aed;
+  --bs-btn-hover-border-color: #7c3aed;
+  --bs-btn-active-bg:        #6d28d9;
+  --bs-btn-active-border-color: #6d28d9;
+}
+
+.bg-primary   { background-color: #7c3aed !important; }
+.text-primary { color: #7c3aed !important; }
+.border-primary { border-color: #7c3aed !important; }
+.badge.bg-primary { background-color: #7c3aed !important; }
+
+/* page-item active */
+.page-item.active .page-link {
+  background-color: #7c3aed;
+  border-color: #7c3aed;
+}
+.page-link { color: #7c3aed; }
+.page-link:hover { color: #6d28d9; }
+
+/* form focus ring */
+.form-control:focus,
+.form-select:focus {
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 0.25rem rgba(124, 58, 237, 0.25);
+}
+
+/* table-dark header → deep purple */
+.table-dark {
+  --bs-table-bg:         #3b0764;
+  --bs-table-color:      #fff;
+  --bs-table-border-color: #5b21b6;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
