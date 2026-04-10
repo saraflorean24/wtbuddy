@@ -9,6 +9,7 @@ import com.wtbuddy.wtbuddy.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,14 +23,14 @@ public class NotificationService {
     public Page<NotificationResponse> getNotifications(String email, int page, int size) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return notificationRepository.findByUserId(user.getId(), PageRequest.of(page, size))
+        return notificationRepository.findByUserId(user.getId(), PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")))
                 .map(this::mapToResponse);
     }
 
     public Page<NotificationResponse> getUnreadNotifications(String email, int page, int size) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return notificationRepository.findByUserIdAndIsReadFalse(user.getId(), PageRequest.of(page, size))
+        return notificationRepository.findByUserIdAndIsReadFalse(user.getId(), PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")))
                 .map(this::mapToResponse);
     }
 
@@ -54,7 +55,7 @@ public class NotificationService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        notificationRepository.findByUserIdAndIsReadFalse(user.getId(), PageRequest.of(0, Integer.MAX_VALUE))
+        notificationRepository.findByUserIdAndIsReadFalse(user.getId(), PageRequest.of(0, Integer.MAX_VALUE, Sort.by(Sort.Direction.DESC, "createdAt")))
                 .forEach(notification -> {
                     notification.setIsRead(true);
                     notificationRepository.save(notification);
