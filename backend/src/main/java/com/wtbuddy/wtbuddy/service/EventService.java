@@ -7,6 +7,8 @@ import com.wtbuddy.wtbuddy.entity.Event;
 import com.wtbuddy.wtbuddy.entity.User;
 import com.wtbuddy.wtbuddy.exception.ResourceNotFoundException;
 import com.wtbuddy.wtbuddy.exception.UnauthorizedException;
+import com.wtbuddy.wtbuddy.entity.EventParticipant;
+import com.wtbuddy.wtbuddy.repository.EventParticipantRepository;
 import com.wtbuddy.wtbuddy.repository.EventRepository;
 import com.wtbuddy.wtbuddy.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ public class EventService {
 
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
+    private final EventParticipantRepository eventParticipantRepository;
 
     @Transactional
     public EventResponse createEvent(CreateEventRequest request, String email) {
@@ -80,6 +83,38 @@ public class EventService {
     }
 
     @Transactional
+    public EventResponse joinEvent(Long id, String email) {
+        Event event = eventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + id));
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (event.getOrganizer().getEmail().equals(email)) {
+            throw new IllegalStateException("Organizer cannot join their own event");
+        }
+
+        if (eventParticipantRepository.existsByEventIdAndUserId(id, user.getId())) {
+            throw new IllegalStateException("Already joined this event");
+        }
+
+        if (event.getMaxParticipants() != null) {
+            long count = eventParticipantRepository.countByEventId(id);
+            if (count >= event.getMaxParticipants()) {
+                throw new IllegalStateException("Event is full");
+            }
+        }
+
+        EventParticipant participant = EventParticipant.builder()
+                .event(event)
+                .user(user)
+                .build();
+        eventParticipantRepository.save(participant);
+
+        return mapToResponse(event);
+    }
+
+    @Transactional
     public void deleteEvent(Long id, String email) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + id));
@@ -92,6 +127,7 @@ public class EventService {
     }
 
     private EventResponse mapToResponse(Event event) {
+        int participantCount = (int) eventParticipantRepository.countByEventId(event.getId());
         return EventResponse.builder()
                 .id(event.getId())
                 .organizerId(event.getOrganizer().getId())
@@ -101,6 +137,7 @@ public class EventService {
                 .location(event.getLocation())
                 .eventDate(event.getEventDate())
                 .maxParticipants(event.getMaxParticipants())
+                .participantCount(participantCount)
                 .createdAt(event.getCreatedAt())
                 .build();
     }

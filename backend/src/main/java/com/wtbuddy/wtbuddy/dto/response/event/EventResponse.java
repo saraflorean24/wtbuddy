@@ -15,5 +15,6 @@ public class EventResponse {
     private String location;
     private LocalDateTime eventDate;
     private Integer maxParticipants;
+    private Integer participantCount;
     private LocalDateTime createdAt;
 }
