@@ -12,5 +12,6 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     Page<Trip> findByUserId(Long userId, Pageable pageable);
     Page<Trip> findByIsPublicTrue(Pageable pageable);
     Page<Trip> findByUserIdAndStatus(Long userId, TripStatus status, Pageable pageable);
-    Page<Trip> findByTitleContainingIgnoreCase(String title, Pageable pageable);
+    Page<Trip> findByTitleContainingIgnoreCaseAndIsPublicTrue(String title, Pageable pageable);
+    Page<Trip> findByUserIdAndTitleContainingIgnoreCase(Long userId, String title, Pageable pageable);
 }

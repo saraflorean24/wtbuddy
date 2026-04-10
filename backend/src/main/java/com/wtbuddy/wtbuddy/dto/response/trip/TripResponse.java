@@ -19,5 +19,6 @@ public class TripResponse {
     private TripStatus status;
     private Boolean isPublic;
     private Integer maxMembers;
+    private Integer memberCount;
     private LocalDateTime createdAt;
 }

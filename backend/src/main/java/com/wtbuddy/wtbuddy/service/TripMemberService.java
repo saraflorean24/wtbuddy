@@ -144,6 +144,13 @@ public class TripMemberService {
                 .toList();
     }
 
+    public java.util.Optional<TripMemberResponse> getMyMembership(Long tripId, String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return tripMemberRepository.findByTripIdAndUserId(tripId, user.getId())
+                .map(this::mapToResponse);
+    }
+
     @Transactional
     public void cancelOrLeave(Long memberId, String email) {
         TripMember member = tripMemberRepository.findById(memberId)

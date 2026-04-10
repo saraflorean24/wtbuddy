@@ -10,6 +10,8 @@ export const AuthProvider = ({ children }) => {
         if (token) {
             const userData = localStorage.getItem('user')
             if (userData) setUser(JSON.parse(userData))
+        } else {
+            setUser(null)
         }
     }, [token])
 
