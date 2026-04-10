@@ -19,7 +19,7 @@ function LoginPage() {
 
         try {
             const data = await login(email, password)
-            authLogin({ email: data.email, username: data.username, role: data.role }, data.token)
+            authLogin({ id: data.id, email: data.email, username: data.username, role: data.role }, data.token)
             navigate('/events')
         } catch (err) {
             setError('Invalid email or password')
