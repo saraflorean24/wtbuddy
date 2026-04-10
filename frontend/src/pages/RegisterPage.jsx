@@ -44,7 +44,7 @@ function RegisterPage() {
                 formData.password,
                 formData.fullName
             )
-            authLogin({ email: data.email, username: data.username, role: data.role }, data.token)
+            authLogin({ id: data.id, email: data.email, username: data.username, role: data.role }, data.token)
             navigate('/events')
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed')

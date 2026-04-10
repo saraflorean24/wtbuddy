@@ -1,7 +1,12 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
+import Navbar from './components/Navbar'
+import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import EventsPage from './pages/EventsPage'
+import TripsPage from './pages/TripsPage'
+import FeedbackPage from './pages/FeedbackPage'
 
 const ProtectedRoute = ({ children }) => {
     const { token } = useAuth()
@@ -10,15 +15,30 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
     const { token } = useAuth()
+    const { pathname } = useLocation()
+
+    const isPublicPage = ['/', '/login', '/register'].includes(pathname)
 
     return (
-        <div>
-            <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/" element={<Navigate to="/login" />} />
-            </Routes>
-        </div>
+        <>
+            {token && !isPublicPage && <Navbar />}
+            <div className={token && !isPublicPage ? 'container-fluid px-4 mt-4' : ''}>
+                <Routes>
+                    <Route path="/" element={token ? <Navigate to="/events" /> : <HomePage />} />
+                    <Route path="/login" element={token ? <Navigate to="/events" /> : <LoginPage />} />
+                    <Route path="/register" element={token ? <Navigate to="/events" /> : <RegisterPage />} />
+                    <Route path="/events" element={
+                        <ProtectedRoute><EventsPage /></ProtectedRoute>
+                    } />
+                    <Route path="/trips" element={
+                        <ProtectedRoute><TripsPage /></ProtectedRoute>
+                    } />
+                    <Route path="/feedback" element={
+                        <ProtectedRoute><FeedbackPage /></ProtectedRoute>
+                    } />
+                </Routes>
+            </div>
+        </>
     )
 }
 
