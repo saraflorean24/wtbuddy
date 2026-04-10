@@ -16,5 +16,6 @@ public class EventResponse {
     private LocalDateTime eventDate;
     private Integer maxParticipants;
     private Integer participantCount;
+    private String myParticipantStatus; // null = not joined, else PENDING / ACCEPTED / DECLINED
     private LocalDateTime createdAt;
 }

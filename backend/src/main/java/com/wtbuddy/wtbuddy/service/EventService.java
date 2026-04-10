@@ -2,15 +2,19 @@ package com.wtbuddy.wtbuddy.service;
 
 import com.wtbuddy.wtbuddy.dto.request.event.CreateEventRequest;
 import com.wtbuddy.wtbuddy.dto.request.event.UpdateEventRequest;
+import com.wtbuddy.wtbuddy.dto.response.event.EventParticipantResponse;
 import com.wtbuddy.wtbuddy.dto.response.event.EventResponse;
 import com.wtbuddy.wtbuddy.entity.Event;
 import com.wtbuddy.wtbuddy.entity.User;
+import com.wtbuddy.wtbuddy.enums.ParticipantStatus;
+import com.wtbuddy.wtbuddy.exception.BadRequestException;
 import com.wtbuddy.wtbuddy.exception.ResourceNotFoundException;
 import com.wtbuddy.wtbuddy.exception.UnauthorizedException;
 import com.wtbuddy.wtbuddy.entity.EventParticipant;
 import com.wtbuddy.wtbuddy.repository.EventParticipantRepository;
 import com.wtbuddy.wtbuddy.repository.EventRepository;
 import com.wtbuddy.wtbuddy.repository.UserRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -40,27 +44,34 @@ public class EventService {
                 .build();
 
         eventRepository.save(event);
-        return mapToResponse(event);
+        return mapToResponse(event, null);
     }
 
-    public Page<EventResponse> getAllEvents(Pageable pageable) {
-        return eventRepository.findAll(pageable).map(this::mapToResponse);
+    public Page<EventResponse> getAllEvents(Pageable pageable, String email) {
+        Long userId = resolveUserId(email);
+        return eventRepository.findAll(pageable).map(e -> mapToResponse(e, userId));
     }
 
-    public Page<EventResponse> searchEvents(String title, Pageable pageable) {
+    public Page<EventResponse> searchEvents(String title, Pageable pageable, String email) {
+        Long userId = resolveUserId(email);
         return eventRepository.findByTitleContainingIgnoreCase(title, pageable)
-                .map(this::mapToResponse);
+                .map(e -> mapToResponse(e, userId));
     }
 
     public Page<EventResponse> getEventsByOrganizer(Long organizerId, Pageable pageable) {
         return eventRepository.findByOrganizerId(organizerId, pageable)
-                .map(this::mapToResponse);
+                .map(e -> mapToResponse(e, null));
     }
 
     public EventResponse getEventById(Long id) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + id));
-        return mapToResponse(event);
+        return mapToResponse(event, null);
+    }
+
+    private Long resolveUserId(String email) {
+        if (email == null) return null;
+        return userRepository.findByEmail(email).map(User::getId).orElse(null);
     }
 
     @Transactional
@@ -79,7 +90,7 @@ public class EventService {
         if (request.getMaxParticipants() != null) event.setMaxParticipants(request.getMaxParticipants());
 
         eventRepository.save(event);
-        return mapToResponse(event);
+        return mapToResponse(event, null);
     }
 
     @Transactional
@@ -99,7 +110,7 @@ public class EventService {
         }
 
         if (event.getMaxParticipants() != null) {
-            long count = eventParticipantRepository.countByEventId(id);
+            long count = eventParticipantRepository.countByEventIdAndStatus(id, ParticipantStatus.ACCEPTED);
             if (count >= event.getMaxParticipants()) {
                 throw new IllegalStateException("Event is full");
             }
@@ -111,7 +122,51 @@ public class EventService {
                 .build();
         eventParticipantRepository.save(participant);
 
-        return mapToResponse(event);
+        return mapToResponse(event, user.getId());
+    }
+
+    public List<EventParticipantResponse> getPendingParticipants(Long eventId) {
+        if (!eventRepository.existsById(eventId)) {
+            throw new ResourceNotFoundException("Event not found with id: " + eventId);
+        }
+        return eventParticipantRepository.findByEventIdAndStatus(eventId, ParticipantStatus.PENDING)
+                .stream()
+                .map(this::mapParticipantToResponse)
+                .toList();
+    }
+
+    @Transactional
+    public EventParticipantResponse respondToParticipant(Long participantId, String statusStr) {
+        EventParticipant participant = eventParticipantRepository.findById(participantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Participant not found"));
+
+        if (participant.getStatus() != ParticipantStatus.PENDING) {
+            throw new BadRequestException("This request is no longer pending");
+        }
+
+        ParticipantStatus newStatus;
+        try {
+            newStatus = ParticipantStatus.valueOf(statusStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Status must be ACCEPTED or DECLINED");
+        }
+        if (newStatus == ParticipantStatus.PENDING) {
+            throw new BadRequestException("Status must be ACCEPTED or DECLINED");
+        }
+
+        participant.setStatus(newStatus);
+        eventParticipantRepository.save(participant);
+        return mapParticipantToResponse(participant);
+    }
+
+    @Transactional
+    public void leaveEvent(Long id, String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        EventParticipant participant = eventParticipantRepository
+                .findByEventIdAndUserId(id, user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("You have not joined this event"));
+        eventParticipantRepository.delete(participant);
     }
 
     @Transactional
@@ -126,8 +181,26 @@ public class EventService {
         eventRepository.delete(event);
     }
 
-    private EventResponse mapToResponse(Event event) {
-        int participantCount = (int) eventParticipantRepository.countByEventId(event.getId());
+    private EventParticipantResponse mapParticipantToResponse(EventParticipant p) {
+        return EventParticipantResponse.builder()
+                .id(p.getId())
+                .userId(p.getUser().getId())
+                .username(p.getUser().getUsername())
+                .status(p.getStatus())
+                .joinedAt(p.getJoinedAt())
+                .build();
+    }
+
+    private EventResponse mapToResponse(Event event, Long currentUserId) {
+        int participantCount = (int) eventParticipantRepository
+                .countByEventIdAndStatus(event.getId(), ParticipantStatus.ACCEPTED);
+        String myStatus = null;
+        if (currentUserId != null) {
+            myStatus = eventParticipantRepository
+                    .findByEventIdAndUserId(event.getId(), currentUserId)
+                    .map(p -> p.getStatus().name())
+                    .orElse(null);
+        }
         return EventResponse.builder()
                 .id(event.getId())
                 .organizerId(event.getOrganizer().getId())
@@ -138,6 +211,7 @@ public class EventService {
                 .eventDate(event.getEventDate())
                 .maxParticipants(event.getMaxParticipants())
                 .participantCount(participantCount)
+                .myParticipantStatus(myStatus)
                 .createdAt(event.getCreatedAt())
                 .build();
     }
