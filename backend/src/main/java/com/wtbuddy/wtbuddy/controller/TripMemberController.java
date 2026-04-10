@@ -48,6 +48,15 @@ public class TripMemberController {
         return ResponseEntity.ok(tripMemberService.getPendingRequests(tripId, userDetails.getUsername()));
     }
 
+    @GetMapping("/{tripId}/my-membership")
+    public ResponseEntity<TripMemberResponse> getMyMembership(
+            @PathVariable Long tripId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return tripMemberService.getMyMembership(tripId, userDetails.getUsername())
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.noContent().build());
+    }
+
     @DeleteMapping("/members/{memberId}")
     public ResponseEntity<Void> cancelOrLeave(
             @PathVariable Long memberId,

@@ -72,20 +72,30 @@ public class AuthService {
                 .build();
     }
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
-        try {
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            request.getEmail(),
-                            request.getPassword()
-                    )
-            );
-        } catch (AuthenticationException e) {
-            throw new BadRequestException("Invalid email or password");
-        }
-
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new BadRequestException("Invalid email or password"));
+
+        // If password is stored as plain text (not a BCrypt hash), encode it on first login
+        if (!user.getPasswordHash().startsWith("$2")) {
+            if (!user.getPasswordHash().equals(request.getPassword())) {
+                throw new BadRequestException("Invalid email or password");
+            }
+            user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            userRepository.save(user);
+        } else {
+            try {
+                authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(
+                                request.getEmail(),
+                                request.getPassword()
+                        )
+                );
+            } catch (AuthenticationException e) {
+                throw new BadRequestException("Invalid email or password");
+            }
+        }
 
         String token = jwtService.generateToken(
                 org.springframework.security.core.userdetails.User.builder()
