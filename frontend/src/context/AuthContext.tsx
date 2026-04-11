@@ -29,8 +29,14 @@ export const AuthProvider = ({ children }) => {
         setUser(null)
     }
 
+    const completeProfile = () => {
+        const updated = { ...user, profileComplete: true }
+        localStorage.setItem('user', JSON.stringify(updated))
+        setUser(updated)
+    }
+
     return (
-        <AuthContext.Provider value={{ user, token, login, logout }}>
+        <AuthContext.Provider value={{ user, token, login, logout, completeProfile }}>
             {children}
         </AuthContext.Provider>
     )

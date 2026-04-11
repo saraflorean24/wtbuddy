@@ -69,6 +69,7 @@ public class AuthService {
                 .email(user.getEmail())
                 .username(user.getUsername())
                 .role(user.getRole().name())
+                .profileComplete(false)
                 .build();
     }
 
@@ -105,12 +106,17 @@ public class AuthService {
                         .build()
         );
 
+        boolean profileComplete = userProfileRepository.findByUserId(user.getId())
+                .map(p -> p.getJobType() != null)
+                .orElse(false);
+
         return AuthResponse.builder()
                 .id(user.getId())
                 .token(token)
                 .email(user.getEmail())
                 .username(user.getUsername())
                 .role(user.getRole().name())
+                .profileComplete(profileComplete)
                 .build();
     }
 }
