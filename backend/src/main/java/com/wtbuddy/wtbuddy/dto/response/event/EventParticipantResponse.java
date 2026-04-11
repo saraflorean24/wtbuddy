@@ -12,5 +12,6 @@ public class EventParticipantResponse {
     private Long userId;
     private String username;
     private ParticipantStatus status;
+    private Boolean declinedByOwner;
     private LocalDateTime joinedAt;
 }

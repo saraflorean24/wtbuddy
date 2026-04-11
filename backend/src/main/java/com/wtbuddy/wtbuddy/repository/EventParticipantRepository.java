@@ -17,4 +17,5 @@ public interface EventParticipantRepository extends JpaRepository<EventParticipa
     Optional<EventParticipant> findByQrCodeToken(String qrCodeToken);
     long countByEventId(Long eventId);
     long countByEventIdAndStatus(Long eventId, ParticipantStatus status);
+    List<EventParticipant> findByEventIdAndDeclinedByOwnerTrue(Long eventId);
 }

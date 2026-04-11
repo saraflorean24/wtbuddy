@@ -40,7 +40,31 @@ export const getPendingParticipants = async (eventId) => {
     return response.data
 }
 
+export const getAcceptedParticipants = async (eventId) => {
+    const response = await api.get(`/events/${eventId}/members`)
+    return response.data
+}
+
 export const respondToParticipant = async (participantId, status) => {
     const response = await api.put(`/events/participants/${participantId}`, { status })
     return response.data
+}
+
+export const getDeclinedParticipants = async (eventId) => {
+    const response = await api.get(`/events/${eventId}/declined`)
+    return response.data
+}
+
+export const reinviteParticipant = async (participantId) => {
+    const response = await api.post(`/events/participants/${participantId}/reinvite`)
+    return response.data
+}
+
+export const acceptEventInvitation = async (eventId) => {
+    const response = await api.post(`/events/${eventId}/accept-invite`)
+    return response.data
+}
+
+export const declineEventInvitation = async (eventId) => {
+    await api.post(`/events/${eventId}/decline-invite`)
 }

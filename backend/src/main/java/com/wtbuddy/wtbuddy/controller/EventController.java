@@ -75,6 +75,39 @@ public class EventController {
         return ResponseEntity.ok(eventService.getPendingParticipants(id));
     }
 
+    @GetMapping("/{id}/members")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<EventParticipantResponse>> getAcceptedParticipants(@PathVariable Long id) {
+        return ResponseEntity.ok(eventService.getAcceptedParticipants(id));
+    }
+
+    @GetMapping("/{id}/declined")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<EventParticipantResponse>> getDeclinedParticipants(@PathVariable Long id) {
+        return ResponseEntity.ok(eventService.getDeclinedParticipants(id));
+    }
+
+    @PostMapping("/participants/{participantId}/reinvite")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<EventParticipantResponse> reinviteParticipant(@PathVariable Long participantId) {
+        return ResponseEntity.ok(eventService.reinviteParticipant(participantId));
+    }
+
+    @PostMapping("/{id}/accept-invite")
+    public ResponseEntity<EventParticipantResponse> acceptInvitation(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(eventService.acceptEventInvitation(id, userDetails.getUsername()));
+    }
+
+    @PostMapping("/{id}/decline-invite")
+    public ResponseEntity<Void> declineInvitation(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        eventService.declineEventInvitation(id, userDetails.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
     @PutMapping("/participants/{participantId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<EventParticipantResponse> respondToParticipant(
