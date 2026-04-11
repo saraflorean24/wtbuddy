@@ -5,11 +5,7 @@ import { useAuth } from '../context/AuthContext'
 
 function RegisterPage() {
     const [formData, setFormData] = useState({
-        email: '',
-        username: '',
-        fullName: '',
-        password: '',
-        confirmPassword: '',
+        email: '', username: '', fullName: '', password: '', confirmPassword: '',
     })
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
@@ -17,9 +13,7 @@ function RegisterPage() {
     const { login: authLogin } = useAuth()
     const navigate = useNavigate()
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value })
-    }
+    const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value })
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -29,23 +23,16 @@ function RegisterPage() {
             setError('Passwords do not match')
             return
         }
-
         if (formData.password.length < 6) {
             setError('Password must be at least 6 characters')
             return
         }
 
         setLoading(true)
-
         try {
-            const data = await register(
-                formData.email,
-                formData.username,
-                formData.password,
-                formData.fullName
-            )
-            authLogin({ id: data.id, email: data.email, username: data.username, role: data.role }, data.token)
-            navigate('/events')
+            const data = await register(formData.email, formData.username, formData.password, formData.fullName)
+            authLogin({ id: data.id, email: data.email, username: data.username, role: data.role, profileComplete: false }, data.token)
+            navigate('/setup-profile')
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed')
         } finally {
@@ -53,90 +40,50 @@ function RegisterPage() {
         }
     }
 
+    const field = (label, name, type = 'text') => (
+        <div className="mb-4">
+            <label className="form-label">{label}</label>
+            <input
+                type={type}
+                className="form-control"
+                name={name}
+                value={formData[name]}
+                onChange={handleChange}
+                required
+            />
+        </div>
+    )
+
     return (
-        <div className="row justify-content-center mt-5">
-            <div className="col-md-5">
-                <div className="card shadow">
-                    <div className="card-body p-4">
-                        <h2 className="card-title text-center mb-4">WTBuddy</h2>
-                        <h5 className="text-center text-muted mb-4">Register</h5>
+        <div className="flex justify-center items-center min-h-screen" style={{ background: 'linear-gradient(135deg, #2d1b69 0%, #4a2494 50%, #6d3fcb 100%)' }}>
+            <div className="w-full max-w-md px-4 py-8">
+                <div className="card">
+                    <div className="p-8">
+                        <h2 className="text-2xl font-bold text-center mb-1">WTBuddy</h2>
+                        <p className="text-center text-gray-500 text-sm mb-6">Create your account</p>
 
                         {error && (
                             <div className="alert alert-danger">{error}</div>
                         )}
 
                         <form onSubmit={handleSubmit}>
-                            <div className="mb-3">
-                                <label className="form-label">Full Name</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    name="fullName"
-                                    value={formData.fullName}
-                                    onChange={handleChange}
-                                    required
-                                />
-                            </div>
-
-                            <div className="mb-3">
-                                <label className="form-label">Username</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    name="username"
-                                    value={formData.username}
-                                    onChange={handleChange}
-                                    required
-                                />
-                            </div>
-
-                            <div className="mb-3">
-                                <label className="form-label">Email</label>
-                                <input
-                                    type="email"
-                                    className="form-control"
-                                    name="email"
-                                    value={formData.email}
-                                    onChange={handleChange}
-                                    required
-                                />
-                            </div>
-
-                            <div className="mb-3">
-                                <label className="form-label">Password</label>
-                                <input
-                                    type="password"
-                                    className="form-control"
-                                    name="password"
-                                    value={formData.password}
-                                    onChange={handleChange}
-                                    required
-                                />
-                            </div>
-
-                            <div className="mb-3">
-                                <label className="form-label">Confirm Password</label>
-                                <input
-                                    type="password"
-                                    className="form-control"
-                                    name="confirmPassword"
-                                    value={formData.confirmPassword}
-                                    onChange={handleChange}
-                                    required
-                                />
-                            </div>
+                            {field('Full Name', 'fullName')}
+                            {field('Username', 'username')}
+                            {field('Email', 'email', 'email')}
+                            {field('Password', 'password', 'password')}
+                            {field('Confirm Password', 'confirmPassword', 'password')}
 
                             <button
                                 type="submit"
-                                className="btn btn-primary w-100"
+                                className="btn btn-primary btn-md w-full mt-2"
                                 disabled={loading}>
                                 {loading ? 'Loading...' : 'Register'}
                             </button>
                         </form>
 
-                        <p className="text-center mt-3">
+                        <p className="text-center mt-4 text-sm text-gray-600">
                             Already have an account?{' '}
-                            <Link to="/login">Login</Link>
+                            <Link to="/login" className="text-violet-600 hover:underline font-medium">Log in</Link>
                         </p>
                     </div>
                 </div>
