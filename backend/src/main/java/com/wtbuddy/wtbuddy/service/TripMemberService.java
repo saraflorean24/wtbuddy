@@ -5,6 +5,7 @@ import com.wtbuddy.wtbuddy.dto.response.trip.TripMemberResponse;
 import com.wtbuddy.wtbuddy.entity.Notification;
 import com.wtbuddy.wtbuddy.entity.Trip;
 import com.wtbuddy.wtbuddy.entity.TripMember;
+import com.wtbuddy.wtbuddy.entity.TripSpotSubscription;
 import com.wtbuddy.wtbuddy.entity.User;
 import com.wtbuddy.wtbuddy.enums.NotificationType;
 import com.wtbuddy.wtbuddy.enums.TripMemberStatus;
@@ -16,6 +17,7 @@ import com.wtbuddy.wtbuddy.repository.FriendshipRepository;
 import com.wtbuddy.wtbuddy.repository.NotificationRepository;
 import com.wtbuddy.wtbuddy.repository.TripMemberRepository;
 import com.wtbuddy.wtbuddy.repository.TripRepository;
+import com.wtbuddy.wtbuddy.repository.TripSpotSubscriptionRepository;
 import com.wtbuddy.wtbuddy.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class TripMemberService {
     private final UserRepository userRepository;
     private final FriendshipRepository friendshipRepository;
     private final NotificationRepository notificationRepository;
+    private final TripSpotSubscriptionRepository subscriptionRepository;
     private final EmailService emailService;
 
     @Transactional
@@ -46,8 +49,22 @@ public class TripMemberService {
             throw new BadRequestException("You cannot request to join your own trip");
         }
 
-        if (tripMemberRepository.existsByTripIdAndUserId(tripId, requester.getId())) {
-            throw new AlreadyExistsException("You already have a join request or membership for this trip");
+        tripMemberRepository.findByTripIdAndUserId(tripId, requester.getId()).ifPresent(existing -> {
+            if (existing.getStatus() == TripMemberStatus.PENDING || existing.getStatus() == TripMemberStatus.ACCEPTED) {
+                throw new AlreadyExistsException("You already have a join request or membership for this trip");
+            }
+            if (existing.getStatus() == TripMemberStatus.DECLINED && Boolean.TRUE.equals(existing.getDeclinedByOwner())) {
+                throw new BadRequestException("Your join request was declined by the trip creator");
+            }
+            // DECLINED with declinedByOwner=false means auto-declined — remove old record so a fresh request can be made
+            tripMemberRepository.delete(existing);
+        });
+
+        if (trip.getMaxMembers() != null) {
+            long acceptedCount = tripMemberRepository.countByTripIdAndStatus(tripId, TripMemberStatus.ACCEPTED);
+            if (acceptedCount >= trip.getMaxMembers()) {
+                throw new BadRequestException("This trip is full. Subscribe to be notified when a spot opens.");
+            }
         }
 
         if (!trip.getIsPublic()) {
@@ -108,7 +125,24 @@ public class TripMemberService {
                     NotificationType.TRIP_JOIN_ACCEPTED,
                     "Your request to join the trip '" + trip.getTitle() + "' has been accepted!");
             emailService.sendTripJoinAcceptedEmail(requester.getEmail(), trip.getTitle());
+
+            // Auto-remove remaining pending requests if trip is now full
+            if (trip.getMaxMembers() != null) {
+                long acceptedCount = tripMemberRepository.countByTripIdAndStatus(trip.getId(), TripMemberStatus.ACCEPTED);
+                if (acceptedCount >= trip.getMaxMembers()) {
+                    List<TripMember> pending = tripMemberRepository.findByTripIdAndStatus(trip.getId(), TripMemberStatus.PENDING);
+                    for (TripMember p : pending) {
+                        User pendingUser = p.getUser();
+                        tripMemberRepository.delete(p);
+                        notifyUser(pendingUser,
+                                NotificationType.TRIP_JOIN_DECLINED,
+                                "The trip '" + trip.getTitle() + "' is now full. Subscribe to get notified if a spot opens up!");
+                    }
+                }
+            }
         } else {
+            member.setDeclinedByOwner(true);
+            tripMemberRepository.save(member);
             notifyUser(requester,
                     NotificationType.TRIP_JOIN_DECLINED,
                     "Your request to join the trip '" + trip.getTitle() + "' has been declined.");
@@ -163,7 +197,145 @@ public class TripMemberService {
             throw new UnauthorizedException("You can only cancel your own join request or leave your own trips");
         }
 
+        boolean wasAccepted = member.getStatus() == TripMemberStatus.ACCEPTED;
+        Long tripId = member.getTrip().getId();
+        String tripTitle = member.getTrip().getTitle();
+
         tripMemberRepository.delete(member);
+        tripMemberRepository.flush();
+
+        if (wasAccepted) {
+            List<TripSpotSubscription> subscribers = subscriptionRepository.findByTripIdWithUser(tripId);
+            for (TripSpotSubscription sub : subscribers) {
+                notifyUser(sub.getUser(),
+                        NotificationType.TRIP_SPOT_AVAILABLE,
+                        "A spot just opened up in the trip '" + tripTitle + "'! Request to join now.");
+            }
+        }
+    }
+
+    @Transactional
+    public void subscribeToSpotNotification(Long tripId, String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Trip trip = tripRepository.findById(tripId)
+                .orElseThrow(() -> new ResourceNotFoundException("Trip not found with id: " + tripId));
+
+        if (subscriptionRepository.existsByTripIdAndUserId(tripId, user.getId())) {
+            throw new AlreadyExistsException("You are already subscribed to spot notifications for this trip");
+        }
+
+        TripSpotSubscription sub = TripSpotSubscription.builder()
+                .trip(trip)
+                .user(user)
+                .build();
+        subscriptionRepository.save(sub);
+    }
+
+    @Transactional
+    public void unsubscribeFromSpotNotification(Long tripId, String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        subscriptionRepository.deleteByTripIdAndUserId(tripId, user.getId());
+    }
+
+    public boolean isSubscribed(Long tripId, String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return subscriptionRepository.existsByTripIdAndUserId(tripId, user.getId());
+    }
+
+    public List<TripMemberResponse> getDeclinedByOwnerRequests(Long tripId, String email) {
+        Trip trip = tripRepository.findById(tripId)
+                .orElseThrow(() -> new ResourceNotFoundException("Trip not found with id: " + tripId));
+
+        User currentUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!trip.getUser().getId().equals(currentUser.getId())) {
+            throw new UnauthorizedException("Only the trip creator can view declined requests");
+        }
+
+        return tripMemberRepository.findByTripIdAndDeclinedByOwnerTrue(tripId)
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    @Transactional
+    public TripMemberResponse reinviteUser(Long memberId, String email) {
+        TripMember member = tripMemberRepository.findById(memberId)
+                .orElseThrow(() -> new ResourceNotFoundException("Trip member not found"));
+
+        User currentUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!member.getTrip().getUser().getId().equals(currentUser.getId())) {
+            throw new UnauthorizedException("Only the trip creator can send invitations");
+        }
+
+        if (member.getStatus() != TripMemberStatus.DECLINED || !Boolean.TRUE.equals(member.getDeclinedByOwner())) {
+            throw new BadRequestException("Can only re-invite users whose request was declined");
+        }
+
+        member.setStatus(TripMemberStatus.INVITED);
+        member.setDeclinedByOwner(false);
+        member.setUpdatedBy(currentUser);
+        tripMemberRepository.save(member);
+
+        notifyUser(member.getUser(),
+                NotificationType.TRIP_INVITE,
+                currentUser.getUsername() + " has invited you to join the trip '" + member.getTrip().getTitle() + "'!");
+
+        return mapToResponse(member);
+    }
+
+    @Transactional
+    public TripMemberResponse acceptInvitation(Long memberId, String email) {
+        TripMember member = tripMemberRepository.findById(memberId)
+                .orElseThrow(() -> new ResourceNotFoundException("Trip member not found"));
+
+        User currentUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!member.getUser().getId().equals(currentUser.getId())) {
+            throw new UnauthorizedException("You can only accept your own invitation");
+        }
+
+        if (member.getStatus() != TripMemberStatus.INVITED) {
+            throw new BadRequestException("No pending invitation found");
+        }
+
+        member.setStatus(TripMemberStatus.ACCEPTED);
+        member.setUpdatedBy(currentUser);
+        tripMemberRepository.save(member);
+
+        notifyUser(member.getTrip().getUser(),
+                NotificationType.TRIP_JOIN_ACCEPTED,
+                member.getUser().getUsername() + " accepted your invitation to join '" + member.getTrip().getTitle() + "'");
+
+        return mapToResponse(member);
+    }
+
+    @Transactional
+    public void declineInvitation(Long memberId, String email) {
+        TripMember member = tripMemberRepository.findById(memberId)
+                .orElseThrow(() -> new ResourceNotFoundException("Trip member not found"));
+
+        User currentUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!member.getUser().getId().equals(currentUser.getId())) {
+            throw new UnauthorizedException("You can only decline your own invitation");
+        }
+
+        if (member.getStatus() != TripMemberStatus.INVITED) {
+            throw new BadRequestException("No pending invitation found");
+        }
+
+        member.setStatus(TripMemberStatus.DECLINED);
+        member.setDeclinedByOwner(false);
+        tripMemberRepository.save(member);
     }
 
     private void notifyUser(User user, NotificationType type, String message) {
@@ -184,6 +356,7 @@ public class TripMemberService {
                 .userId(member.getUser().getId())
                 .username(member.getUser().getUsername())
                 .status(member.getStatus())
+                .declinedByOwner(member.getDeclinedByOwner())
                 .joinedAt(member.getJoinedAt())
                 .updatedAt(member.getUpdatedAt())
                 .build();

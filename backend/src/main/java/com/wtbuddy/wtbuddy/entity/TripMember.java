@@ -41,6 +41,10 @@ public class TripMember {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Builder.Default
+    @Column(name = "declined_by_owner", nullable = false)
+    private Boolean declinedByOwner = false;
+
     @PrePersist
     protected void onCreate() {
         joinedAt = LocalDateTime.now();

@@ -1,0 +1,19 @@
+ALTER TABLE notification DROP CONSTRAINT IF EXISTS notification_type_check;
+
+ALTER TABLE notification
+    ADD CONSTRAINT notification_type_check
+    CHECK (type IN (
+        'FRIEND_REQUEST',
+        'FRIEND_ACCEPTED',
+        'EVENT_INVITE',
+        'MATCH_SUGGESTION',
+        'EVENT_REMINDER',
+        'TRIP_INVITE',
+        'TRIP_JOIN_REQUEST',
+        'TRIP_JOIN_ACCEPTED',
+        'TRIP_JOIN_DECLINED',
+        'EVENT_JOIN_REQUEST',
+        'EVENT_JOIN_ACCEPTED',
+        'EVENT_JOIN_DECLINED',
+        'TRIP_SPOT_AVAILABLE'
+    ));

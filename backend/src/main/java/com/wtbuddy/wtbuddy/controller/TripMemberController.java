@@ -64,4 +64,56 @@ public class TripMemberController {
         tripMemberService.cancelOrLeave(memberId, userDetails.getUsername());
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/{tripId}/declined")
+    public ResponseEntity<List<TripMemberResponse>> getDeclinedRequests(
+            @PathVariable Long tripId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(tripMemberService.getDeclinedByOwnerRequests(tripId, userDetails.getUsername()));
+    }
+
+    @PostMapping("/members/{memberId}/reinvite")
+    public ResponseEntity<TripMemberResponse> reinviteUser(
+            @PathVariable Long memberId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(tripMemberService.reinviteUser(memberId, userDetails.getUsername()));
+    }
+
+    @PostMapping("/members/{memberId}/accept-invite")
+    public ResponseEntity<TripMemberResponse> acceptInvitation(
+            @PathVariable Long memberId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(tripMemberService.acceptInvitation(memberId, userDetails.getUsername()));
+    }
+
+    @PostMapping("/members/{memberId}/decline-invite")
+    public ResponseEntity<Void> declineInvitation(
+            @PathVariable Long memberId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        tripMemberService.declineInvitation(memberId, userDetails.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{tripId}/subscribe")
+    public ResponseEntity<Void> subscribe(
+            @PathVariable Long tripId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        tripMemberService.subscribeToSpotNotification(tripId, userDetails.getUsername());
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{tripId}/subscribe")
+    public ResponseEntity<Void> unsubscribe(
+            @PathVariable Long tripId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        tripMemberService.unsubscribeFromSpotNotification(tripId, userDetails.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{tripId}/subscribe")
+    public ResponseEntity<Boolean> isSubscribed(
+            @PathVariable Long tripId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(tripMemberService.isSubscribed(tripId, userDetails.getUsername()));
+    }
 }
