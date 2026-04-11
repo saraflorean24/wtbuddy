@@ -6,6 +6,8 @@ import com.wtbuddy.wtbuddy.dto.response.event.EventParticipantResponse;
 import com.wtbuddy.wtbuddy.dto.response.event.EventResponse;
 import com.wtbuddy.wtbuddy.entity.Event;
 import com.wtbuddy.wtbuddy.entity.User;
+import com.wtbuddy.wtbuddy.entity.Notification;
+import com.wtbuddy.wtbuddy.enums.NotificationType;
 import com.wtbuddy.wtbuddy.enums.ParticipantStatus;
 import com.wtbuddy.wtbuddy.exception.BadRequestException;
 import com.wtbuddy.wtbuddy.exception.ResourceNotFoundException;
@@ -13,6 +15,7 @@ import com.wtbuddy.wtbuddy.exception.UnauthorizedException;
 import com.wtbuddy.wtbuddy.entity.EventParticipant;
 import com.wtbuddy.wtbuddy.repository.EventParticipantRepository;
 import com.wtbuddy.wtbuddy.repository.EventRepository;
+import com.wtbuddy.wtbuddy.repository.NotificationRepository;
 import com.wtbuddy.wtbuddy.repository.UserRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +31,7 @@ public class EventService {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final EventParticipantRepository eventParticipantRepository;
+    private final NotificationRepository notificationRepository;
 
     @Transactional
     public EventResponse createEvent(CreateEventRequest request, String email) {
@@ -105,9 +109,15 @@ public class EventService {
             throw new IllegalStateException("Organizer cannot join their own event");
         }
 
-        if (eventParticipantRepository.existsByEventIdAndUserId(id, user.getId())) {
-            throw new IllegalStateException("Already joined this event");
-        }
+        eventParticipantRepository.findByEventIdAndUserId(id, user.getId()).ifPresent(existing -> {
+            if (existing.getStatus() == ParticipantStatus.PENDING || existing.getStatus() == ParticipantStatus.ACCEPTED) {
+                throw new IllegalStateException("Already joined this event");
+            }
+            if (existing.getStatus() == ParticipantStatus.DECLINED && Boolean.TRUE.equals(existing.getDeclinedByOwner())) {
+                throw new BadRequestException("Your join request was declined by the organizer");
+            }
+            eventParticipantRepository.delete(existing);
+        });
 
         if (event.getMaxParticipants() != null) {
             long count = eventParticipantRepository.countByEventIdAndStatus(id, ParticipantStatus.ACCEPTED);
@@ -122,6 +132,9 @@ public class EventService {
                 .build();
         eventParticipantRepository.save(participant);
 
+        notifyUser(event.getOrganizer(), NotificationType.EVENT_JOIN_REQUEST,
+                user.getUsername() + " wants to join your event '" + event.getTitle() + "'");
+
         return mapToResponse(event, user.getId());
     }
 
@@ -130,6 +143,16 @@ public class EventService {
             throw new ResourceNotFoundException("Event not found with id: " + eventId);
         }
         return eventParticipantRepository.findByEventIdAndStatus(eventId, ParticipantStatus.PENDING)
+                .stream()
+                .map(this::mapParticipantToResponse)
+                .toList();
+    }
+
+    public List<EventParticipantResponse> getAcceptedParticipants(Long eventId) {
+        if (!eventRepository.existsById(eventId)) {
+            throw new ResourceNotFoundException("Event not found with id: " + eventId);
+        }
+        return eventParticipantRepository.findByEventIdAndStatus(eventId, ParticipantStatus.ACCEPTED)
                 .stream()
                 .map(this::mapParticipantToResponse)
                 .toList();
@@ -155,8 +178,100 @@ public class EventService {
         }
 
         participant.setStatus(newStatus);
+        if (newStatus == ParticipantStatus.DECLINED) {
+            participant.setDeclinedByOwner(true);
+        }
         eventParticipantRepository.save(participant);
+
+        Event event = participant.getEvent();
+        User requester = participant.getUser();
+        if (newStatus == ParticipantStatus.ACCEPTED) {
+            notifyUser(requester, NotificationType.EVENT_JOIN_ACCEPTED,
+                    "Your request to join '" + event.getTitle() + "' has been accepted!");
+        } else {
+            notifyUser(requester, NotificationType.EVENT_JOIN_DECLINED,
+                    "Your request to join '" + event.getTitle() + "' has been declined.");
+        }
+
         return mapParticipantToResponse(participant);
+    }
+
+    public List<EventParticipantResponse> getDeclinedParticipants(Long eventId) {
+        if (!eventRepository.existsById(eventId)) {
+            throw new ResourceNotFoundException("Event not found with id: " + eventId);
+        }
+        return eventParticipantRepository.findByEventIdAndDeclinedByOwnerTrue(eventId)
+                .stream()
+                .map(this::mapParticipantToResponse)
+                .toList();
+    }
+
+    @Transactional
+    public EventParticipantResponse reinviteParticipant(Long participantId) {
+        EventParticipant participant = eventParticipantRepository.findById(participantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Participant not found"));
+
+        if (participant.getStatus() != ParticipantStatus.DECLINED || !Boolean.TRUE.equals(participant.getDeclinedByOwner())) {
+            throw new BadRequestException("Can only re-invite participants whose request was declined");
+        }
+
+        participant.setStatus(ParticipantStatus.INVITED);
+        participant.setDeclinedByOwner(false);
+        eventParticipantRepository.save(participant);
+
+        notifyUser(participant.getUser(), NotificationType.EVENT_INVITE,
+                "You have been invited to join the event '" + participant.getEvent().getTitle() + "'!");
+
+        return mapParticipantToResponse(participant);
+    }
+
+    @Transactional
+    public EventParticipantResponse acceptEventInvitation(Long eventId, String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        EventParticipant participant = eventParticipantRepository
+                .findByEventIdAndUserId(eventId, user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found"));
+
+        if (participant.getStatus() != ParticipantStatus.INVITED) {
+            throw new BadRequestException("No pending invitation found");
+        }
+
+        participant.setStatus(ParticipantStatus.ACCEPTED);
+        eventParticipantRepository.save(participant);
+
+        notifyUser(participant.getEvent().getOrganizer(), NotificationType.EVENT_JOIN_ACCEPTED,
+                user.getUsername() + " accepted your invitation to '" + participant.getEvent().getTitle() + "'");
+
+        return mapParticipantToResponse(participant);
+    }
+
+    @Transactional
+    public void declineEventInvitation(Long eventId, String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        EventParticipant participant = eventParticipantRepository
+                .findByEventIdAndUserId(eventId, user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found"));
+
+        if (participant.getStatus() != ParticipantStatus.INVITED) {
+            throw new BadRequestException("No pending invitation found");
+        }
+
+        participant.setStatus(ParticipantStatus.DECLINED);
+        participant.setDeclinedByOwner(false);
+        eventParticipantRepository.save(participant);
+    }
+
+    private void notifyUser(User user, NotificationType type, String message) {
+        notificationRepository.save(Notification.builder()
+                .user(user)
+                .type(type)
+                .message(message)
+                .isRead(false)
+                .build());
     }
 
     @Transactional
@@ -187,6 +302,7 @@ public class EventService {
                 .userId(p.getUser().getId())
                 .username(p.getUser().getUsername())
                 .status(p.getStatus())
+                .declinedByOwner(p.getDeclinedByOwner())
                 .joinedAt(p.getJoinedAt())
                 .build();
     }
@@ -195,11 +311,12 @@ public class EventService {
         int participantCount = (int) eventParticipantRepository
                 .countByEventIdAndStatus(event.getId(), ParticipantStatus.ACCEPTED);
         String myStatus = null;
+        Boolean myDeclinedByOwner = null;
         if (currentUserId != null) {
-            myStatus = eventParticipantRepository
-                    .findByEventIdAndUserId(event.getId(), currentUserId)
-                    .map(p -> p.getStatus().name())
-                    .orElse(null);
+            var myParticipant = eventParticipantRepository
+                    .findByEventIdAndUserId(event.getId(), currentUserId);
+            myStatus = myParticipant.map(p -> p.getStatus().name()).orElse(null);
+            myDeclinedByOwner = myParticipant.map(EventParticipant::getDeclinedByOwner).orElse(null);
         }
         return EventResponse.builder()
                 .id(event.getId())
@@ -212,6 +329,7 @@ public class EventService {
                 .maxParticipants(event.getMaxParticipants())
                 .participantCount(participantCount)
                 .myParticipantStatus(myStatus)
+                .myParticipantDeclinedByOwner(myDeclinedByOwner)
                 .createdAt(event.getCreatedAt())
                 .build();
     }

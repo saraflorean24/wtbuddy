@@ -1,6 +1,34 @@
 import { useState, useEffect } from 'react'
-import { getEvents, createEvent, updateEvent, deleteEvent, joinEvent, leaveEvent, getPendingParticipants, respondToParticipant } from '../api/eventApi'
+import { getEvents, createEvent, updateEvent, deleteEvent, joinEvent, leaveEvent, getPendingParticipants, respondToParticipant, getAcceptedParticipants, getDeclinedParticipants, reinviteParticipant, acceptEventInvitation, declineEventInvitation } from '../api/eventApi'
 import { useAuth } from '../context/AuthContext'
+
+function Pagination({ currentPage, totalPages, onChange }) {
+    if (totalPages <= 1) return null
+    return (
+        <div className="flex items-center gap-1 justify-center mt-6">
+            <button className="page-btn" disabled={currentPage === 0} onClick={() => onChange(currentPage - 1)}>Previous</button>
+            {[...Array(totalPages)].map((_, i) => (
+                <button key={i} className={`page-btn ${currentPage === i ? 'page-btn-active' : ''}`} onClick={() => onChange(i)}>{i + 1}</button>
+            ))}
+            <button className="page-btn" disabled={currentPage === totalPages - 1} onClick={() => onChange(currentPage + 1)}>Next</button>
+        </div>
+    )
+}
+
+function Modal({ title, onClose, children, footer, size = 'md' }) {
+    return (
+        <div className="modal-overlay">
+            <div className={`modal-box modal-box-${size}`}>
+                <div className="modal-header">
+                    <h5 className="text-base font-semibold m-0">{title}</h5>
+                    <button className="btn-close" onClick={onClose}>×</button>
+                </div>
+                <div className="modal-body">{children}</div>
+                {footer && <div className="modal-footer">{footer}</div>}
+            </div>
+        </div>
+    )
+}
 
 function EventsPage() {
     const { user } = useAuth()
@@ -13,24 +41,23 @@ function EventsPage() {
     const [loading,     setLoading]     = useState(false)
     const [error,       setError]       = useState('')
 
-    // Create / Edit modal
-    const [showModal,    setShowModal]    = useState(false)
+    const [showModal,     setShowModal]     = useState(false)
     const [selectedEvent, setSelectedEvent] = useState(null)
     const [formData, setFormData] = useState({
         title: '', description: '', location: '', eventDate: '', maxParticipants: '',
     })
 
-    // Delete modal
-    const [showDeleteModal, setShowDeleteModal] = useState(false)
-
-    // Leave confirmation modal
-    const [showLeaveModal, setShowLeaveModal] = useState(false)
-    const [eventToLeave,   setEventToLeave]   = useState(null)
-
-    // Requests modal (admin)
+    const [showDeleteModal,   setShowDeleteModal]   = useState(false)
+    const [showLeaveModal,    setShowLeaveModal]     = useState(false)
+    const [eventToLeave,      setEventToLeave]       = useState(null)
     const [showRequestsModal, setShowRequestsModal] = useState(false)
     const [requestsEvent,     setRequestsEvent]     = useState(null)
     const [pendingList,       setPendingList]        = useState([])
+    const [declinedList,      setDeclinedList]       = useState([])
+
+    const [showMembersModal, setShowMembersModal] = useState(false)
+    const [membersEvent,     setMembersEvent]     = useState(null)
+    const [membersList,      setMembersList]      = useState([])
 
     useEffect(() => { fetchEvents() }, [currentPage, search])
 
@@ -44,7 +71,6 @@ function EventsPage() {
         finally  { setLoading(false) }
     }
 
-    // ── Create / Edit ────────────────────────────────────────────────────
     const handleOpenCreate = () => {
         setSelectedEvent(null)
         setFormData({ title: '', description: '', location: '', eventDate: '', maxParticipants: '' })
@@ -78,7 +104,6 @@ function EventsPage() {
         } catch { setError('Failed to save event') }
     }
 
-    // ── Delete ───────────────────────────────────────────────────────────
     const handleDelete = async () => {
         try {
             await deleteEvent(selectedEvent.id)
@@ -87,7 +112,6 @@ function EventsPage() {
         } catch { setError('Failed to delete event') }
     }
 
-    // ── Join ─────────────────────────────────────────────────────────────
     const handleJoin = async (event) => {
         try {
             await joinEvent(event.id)
@@ -95,22 +119,57 @@ function EventsPage() {
         } catch (err) { setError(err.response?.data?.message || 'Failed to join event') }
     }
 
-    // ── Requests (admin) ─────────────────────────────────────────────────
     const handleOpenRequests = async (event) => {
-        setRequestsEvent(event); setPendingList([]); setShowRequestsModal(true)
-        try { setPendingList(await getPendingParticipants(event.id)) }
-        catch { setError('Failed to load requests') }
+        setRequestsEvent(event); setPendingList([]); setDeclinedList([]); setShowRequestsModal(true)
+        try {
+            const [pending, declined] = await Promise.all([
+                getPendingParticipants(event.id),
+                getDeclinedParticipants(event.id),
+            ])
+            setPendingList(pending)
+            setDeclinedList(declined)
+        } catch { setError('Failed to load requests') }
+    }
+
+    const handleOpenMembers = async (event) => {
+        setMembersEvent(event); setMembersList([]); setShowMembersModal(true)
+        try { setMembersList(await getAcceptedParticipants(event.id)) }
+        catch { setError('Failed to load members') }
     }
 
     const handleRespond = async (participantId, status) => {
         try {
             await respondToParticipant(participantId, status)
             setPendingList(prev => prev.filter(p => p.id !== participantId))
+            if (status === 'DECLINED') {
+                const declined = await getDeclinedParticipants(requestsEvent.id)
+                setDeclinedList(declined)
+            }
             fetchEvents()
         } catch (err) { setError(err.response?.data?.message || 'Failed to respond') }
     }
 
-    // ── Leave ────────────────────────────────────────────────────────────
+    const handleReinvite = async (participantId) => {
+        try {
+            await reinviteParticipant(participantId)
+            setDeclinedList(prev => prev.filter(p => p.id !== participantId))
+        } catch (err) { setError(err.response?.data?.message || 'Failed to send invitation') }
+    }
+
+    const handleAcceptInvitation = async (event) => {
+        try {
+            await acceptEventInvitation(event.id)
+            fetchEvents()
+        } catch (err) { setError(err.response?.data?.message || 'Failed to accept invitation') }
+    }
+
+    const handleDeclineInvitation = async (event) => {
+        try {
+            await declineEventInvitation(event.id)
+            fetchEvents()
+        } catch (err) { setError(err.response?.data?.message || 'Failed to decline invitation') }
+    }
+
     const handleLeaveConfirm = (event) => { setEventToLeave(event); setShowLeaveModal(true) }
 
     const handleLeave = async () => {
@@ -121,43 +180,42 @@ function EventsPage() {
         } catch (err) { setError(err.response?.data?.message || 'Failed to leave event') }
     }
 
-    // ── Action button per event ──────────────────────────────────────────
     const renderAction = (event) => {
         if (isAdmin) {
             return (
-                <>
-                    <button className="btn btn-sm btn-warning me-1" onClick={() => handleOpenEdit(event)}>Edit</button>
-                    <button className="btn btn-sm btn-danger me-1"
-                        onClick={() => { setSelectedEvent(event); setShowDeleteModal(true) }}>Delete</button>
-                    <button className="btn btn-sm btn-info" onClick={() => handleOpenRequests(event)}>Requests</button>
-                </>
+                <div className="flex gap-1 flex-wrap">
+                    <button className="btn btn-warning btn-sm" onClick={() => handleOpenEdit(event)}>Edit</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => { setSelectedEvent(event); setShowDeleteModal(true) }}>Delete</button>
+                    <button className="btn btn-info btn-sm" onClick={() => handleOpenRequests(event)}>Requests</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => handleOpenMembers(event)}>Members</button>
+                </div>
             )
         }
 
         const status = event.myParticipantStatus
-        const isFull = event.maxParticipants != null &&
-            event.maxParticipants - (event.participantCount || 0) <= 0
+        const declinedByOwner = event.myParticipantDeclinedByOwner
+        const isFull = event.maxParticipants != null && event.maxParticipants - (event.participantCount || 0) <= 0
+        // auto-declined (declinedByOwner=false) → treat same as no membership
+        const effectiveStatus = (status === 'DECLINED' && !declinedByOwner) ? null : status
 
-        if (status === 'ACCEPTED') {
-            return (
-                <button className="btn btn-sm btn-outline-danger" onClick={() => handleLeaveConfirm(event)}>
-                    Leave
-                </button>
-            )
-        }
-        if (status === 'PENDING') {
-            return (
-                <button className="btn btn-sm btn-secondary" disabled>
-                    Request Sent
-                </button>
-            )
-        }
-        if (status === 'DECLINED') {
-            return <span className="badge bg-danger px-2 py-2">Declined</span>
-        }
+        if (effectiveStatus === 'ACCEPTED') return (
+            <button className="btn btn-outline-danger btn-sm" onClick={() => handleLeaveConfirm(event)}>Leave</button>
+        )
+        if (effectiveStatus === 'PENDING') return (
+            <button className="btn btn-secondary btn-sm" disabled>Request Sent</button>
+        )
+        if (effectiveStatus === 'INVITED') return (
+            <div className="flex gap-1 flex-wrap">
+                <span className="badge badge-info px-2 py-1">Invited!</span>
+                <button className="btn btn-success btn-sm" onClick={() => handleAcceptInvitation(event)}>Accept</button>
+                <button className="btn btn-outline-danger btn-sm" onClick={() => handleDeclineInvitation(event)}>Decline</button>
+            </div>
+        )
+        if (effectiveStatus === 'DECLINED') return (
+            <span className="badge badge-danger px-3 py-1.5">Declined</span>
+        )
         return (
-            <button className="btn btn-sm btn-success" onClick={() => handleJoin(event)}
-                disabled={isFull}>
+            <button className="btn btn-success btn-sm" onClick={() => handleJoin(event)} disabled={isFull}>
                 {isFull ? 'Full' : 'Join Event'}
             </button>
         )
@@ -165,204 +223,200 @@ function EventsPage() {
 
     return (
         <div>
-            <div className="d-flex justify-content-between align-items-center mb-4">
-                <h2>Events</h2>
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Events</h2>
                 {isAdmin && (
-                    <button className="btn btn-primary" onClick={handleOpenCreate}>+ Add Event</button>
+                    <button className="btn btn-primary btn-md" onClick={handleOpenCreate}>+ Add Event</button>
                 )}
             </div>
 
             {error && (
-                <div className="alert alert-danger alert-dismissible">
-                    {error}
-                    <button className="btn-close" onClick={() => setError('')} />
+                <div className="alert alert-danger justify-between">
+                    <span>{error}</span>
+                    <button className="btn-close text-red-700" onClick={() => setError('')}>×</button>
                 </div>
             )}
 
-            <div className="mb-3">
+            <div className="mb-4">
                 <input type="text" className="form-control" placeholder="Search events..."
                     value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(0) }} />
             </div>
 
-            {loading ? <div className="text-center">Loading...</div> : (
-                <table className="table table-striped table-hover">
-                    <thead className="table-dark">
-                        <tr>
-                            <th>Title</th><th>Location</th><th>Date</th>
-                            <th>Available Spots</th><th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {events.length === 0
-                            ? <tr><td colSpan="5" className="text-center">No events found</td></tr>
-                            : events.map(event => (
-                                <tr key={event.id}>
-                                    <td>
-                                        <div className="fw-semibold">{event.title}</div>
-                                        {event.description && (
-                                            <div className="text-muted small" style={{ maxWidth: '260px' }}>
-                                                {event.description.length > 80
-                                                    ? event.description.slice(0, 80) + '…'
-                                                    : event.description}
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td>{event.location || '-'}</td>
-                                    <td>{new Date(event.eventDate).toLocaleDateString()}</td>
-                                    <td>{event.maxParticipants != null
-                                        ? event.maxParticipants - (event.participantCount || 0)
-                                        : '-'}</td>
-                                    <td>{renderAction(event)}</td>
-                                </tr>
-                            ))}
-                    </tbody>
-                </table>
-            )}
-
-            {totalPages > 1 && (
-                <nav><ul className="pagination justify-content-center">
-                    <li className={`page-item ${currentPage === 0 ? 'disabled' : ''}`}>
-                        <button className="page-link" onClick={() => setCurrentPage(p => p - 1)}>Previous</button>
-                    </li>
-                    {[...Array(totalPages)].map((_, i) => (
-                        <li key={i} className={`page-item ${currentPage === i ? 'active' : ''}`}>
-                            <button className="page-link" onClick={() => setCurrentPage(i)}>{i + 1}</button>
-                        </li>
-                    ))}
-                    <li className={`page-item ${currentPage === totalPages - 1 ? 'disabled' : ''}`}>
-                        <button className="page-link" onClick={() => setCurrentPage(p => p + 1)}>Next</button>
-                    </li>
-                </ul></nav>
-            )}
-
-            {/* ── Add / Edit Modal ── */}
-            {showModal && (
-                <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                    <div className="modal-dialog">
-                        <div className="modal-content">
-                            <div className="modal-header">
-                                <h5 className="modal-title">{selectedEvent ? 'Edit Event' : 'Add Event'}</h5>
-                                <button className="btn-close" onClick={() => setShowModal(false)} />
-                            </div>
-                            <form onSubmit={handleSubmit}>
-                                <div className="modal-body">
-                                    <div className="mb-3">
-                                        <label className="form-label">Title *</label>
-                                        <input type="text" className="form-control" required
-                                            value={formData.title}
-                                            onChange={e => setFormData({ ...formData, title: e.target.value })} />
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label">Description</label>
-                                        <textarea className="form-control" rows="3"
-                                            value={formData.description}
-                                            onChange={e => setFormData({ ...formData, description: e.target.value })} />
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label">Location</label>
-                                        <input type="text" className="form-control"
-                                            value={formData.location}
-                                            onChange={e => setFormData({ ...formData, location: e.target.value })} />
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label">Date *</label>
-                                        <input type="datetime-local" className="form-control" required
-                                            value={formData.eventDate}
-                                            onChange={e => setFormData({ ...formData, eventDate: e.target.value })} />
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label">Max Participants</label>
-                                        <input type="number" className="form-control"
-                                            value={formData.maxParticipants}
-                                            onChange={e => setFormData({ ...formData, maxParticipants: e.target.value })} />
-                                    </div>
-                                </div>
-                                <div className="modal-footer">
-                                    <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                                    <button type="submit" className="btn btn-primary">
-                                        {selectedEvent ? 'Save Changes' : 'Create Event'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ── Delete Modal ── */}
-            {showDeleteModal && (
-                <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                    <div className="modal-dialog">
-                        <div className="modal-content">
-                            <div className="modal-header">
-                                <h5 className="modal-title">Confirm Delete</h5>
-                                <button className="btn-close" onClick={() => setShowDeleteModal(false)} />
-                            </div>
-                            <div className="modal-body">
-                                Are you sure you want to delete <strong>{selectedEvent?.title}</strong>?
-                            </div>
-                            <div className="modal-footer">
-                                <button className="btn btn-secondary" onClick={() => setShowDeleteModal(false)}>Cancel</button>
-                                <button className="btn btn-danger" onClick={handleDelete}>Delete</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ── Requests Modal (admin) ── */}
-            {showRequestsModal && (
-                <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                    <div className="modal-dialog">
-                        <div className="modal-content">
-                            <div className="modal-header">
-                                <h5 className="modal-title">Join Requests — {requestsEvent?.title}</h5>
-                                <button className="btn-close" onClick={() => setShowRequestsModal(false)} />
-                            </div>
-                            <div className="modal-body">
-                                {pendingList.length === 0
-                                    ? <p className="text-muted mb-0">No pending requests.</p>
-                                    : <ul className="list-group list-group-flush">
-                                        {pendingList.map(p => (
-                                            <li key={p.id} className="list-group-item d-flex justify-content-between align-items-center px-0">
-                                                <span className="fw-semibold">{p.username}</span>
-                                                <div>
-                                                    <button className="btn btn-sm btn-success me-2"
-                                                        onClick={() => handleRespond(p.id, 'ACCEPTED')}>Accept</button>
-                                                    <button className="btn btn-sm btn-danger"
-                                                        onClick={() => handleRespond(p.id, 'DECLINED')}>Decline</button>
+            {loading ? <div className="text-center py-8 text-gray-500">Loading...</div> : (
+                <div className="overflow-x-auto rounded-lg shadow-sm border border-gray-200">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th><th>Location</th><th>Date</th>
+                                <th>Available Spots</th><th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {events.length === 0
+                                ? <tr><td colSpan="5" className="text-center text-gray-400 py-8">No events found</td></tr>
+                                : events.map(event => (
+                                    <tr key={event.id}>
+                                        <td>
+                                            <div className="font-semibold">{event.title}</div>
+                                            {event.description && (
+                                                <div className="text-gray-500 text-xs mt-0.5 mx-auto" style={{ maxWidth: '260px' }}>
+                                                    {event.description.length > 80
+                                                        ? event.description.slice(0, 80) + '…'
+                                                        : event.description}
                                                 </div>
-                                            </li>
-                                        ))}
-                                    </ul>}
-                            </div>
-                            <div className="modal-footer">
-                                <button className="btn btn-secondary" onClick={() => setShowRequestsModal(false)}>Close</button>
-                            </div>
-                        </div>
-                    </div>
+                                            )}
+                                        </td>
+                                        <td className="text-gray-600">{event.location || '-'}</td>
+                                        <td className="text-gray-600 whitespace-nowrap">{new Date(event.eventDate).toLocaleDateString()}</td>
+                                        <td className="text-gray-600">{event.maxParticipants != null
+                                            ? event.maxParticipants - (event.participantCount || 0)
+                                            : '-'}</td>
+                                        <td>{renderAction(event)}</td>
+                                    </tr>
+                                ))}
+                        </tbody>
+                    </table>
                 </div>
             )}
 
-            {/* ── Leave Confirmation Modal ── */}
-            {showLeaveModal && (
-                <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                    <div className="modal-dialog">
-                        <div className="modal-content">
-                            <div className="modal-header">
-                                <h5 className="modal-title">Leave Event</h5>
-                                <button className="btn-close" onClick={() => setShowLeaveModal(false)} />
-                            </div>
-                            <div className="modal-body">
-                                Are you sure you want to leave <strong>{eventToLeave?.title}</strong>?
-                            </div>
-                            <div className="modal-footer">
-                                <button className="btn btn-secondary" onClick={() => setShowLeaveModal(false)}>Cancel</button>
-                                <button className="btn btn-danger" onClick={handleLeave}>Leave</button>
-                            </div>
+            <Pagination currentPage={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
+
+            {/* Add / Edit Modal */}
+            {showModal && (
+                <Modal
+                    title={selectedEvent ? 'Edit Event' : 'Add Event'}
+                    onClose={() => setShowModal(false)}
+                    footer={
+                        <>
+                            <button className="btn btn-secondary btn-md" onClick={() => setShowModal(false)}>Cancel</button>
+                            <button form="event-form" type="submit" className="btn btn-primary btn-md">
+                                {selectedEvent ? 'Save Changes' : 'Create Event'}
+                            </button>
+                        </>
+                    }>
+                    <form id="event-form" onSubmit={handleSubmit}>
+                        <div className="mb-4">
+                            <label className="form-label">Title *</label>
+                            <input type="text" className="form-control" required
+                                value={formData.title}
+                                onChange={e => setFormData({ ...formData, title: e.target.value })} />
                         </div>
-                    </div>
-                </div>
+                        <div className="mb-4">
+                            <label className="form-label">Description</label>
+                            <textarea className="form-control" rows="3"
+                                value={formData.description}
+                                onChange={e => setFormData({ ...formData, description: e.target.value })} />
+                        </div>
+                        <div className="mb-4">
+                            <label className="form-label">Location</label>
+                            <input type="text" className="form-control"
+                                value={formData.location}
+                                onChange={e => setFormData({ ...formData, location: e.target.value })} />
+                        </div>
+                        <div className="mb-4">
+                            <label className="form-label">Date *</label>
+                            <input type="datetime-local" className="form-control" required
+                                value={formData.eventDate}
+                                onChange={e => setFormData({ ...formData, eventDate: e.target.value })} />
+                        </div>
+                        <div className="mb-2">
+                            <label className="form-label">Max Participants</label>
+                            <input type="number" className="form-control"
+                                value={formData.maxParticipants}
+                                onChange={e => setFormData({ ...formData, maxParticipants: e.target.value })} />
+                        </div>
+                    </form>
+                </Modal>
+            )}
+
+            {/* Delete Modal */}
+            {showDeleteModal && (
+                <Modal
+                    title="Confirm Delete"
+                    onClose={() => setShowDeleteModal(false)}
+                    footer={
+                        <>
+                            <button className="btn btn-secondary btn-md" onClick={() => setShowDeleteModal(false)}>Cancel</button>
+                            <button className="btn btn-danger btn-md" onClick={handleDelete}>Delete</button>
+                        </>
+                    }>
+                    Are you sure you want to delete <strong>{selectedEvent?.title}</strong>?
+                </Modal>
+            )}
+
+            {/* Requests Modal */}
+            {showRequestsModal && (
+                <Modal
+                    title={`Join Requests — ${requestsEvent?.title}`}
+                    onClose={() => setShowRequestsModal(false)}
+                    footer={<button className="btn btn-secondary btn-md" onClick={() => setShowRequestsModal(false)}>Close</button>}>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Pending</p>
+                    {pendingList.length === 0
+                        ? <p className="text-gray-400 mb-0">No pending requests.</p>
+                        : <ul className="divide-y divide-gray-100">
+                            {pendingList.map(p => (
+                                <li key={p.id} className="flex justify-between items-center py-3">
+                                    <span className="font-semibold">{p.username}</span>
+                                    <div className="flex gap-2">
+                                        <button className="btn btn-success btn-sm" onClick={() => handleRespond(p.id, 'ACCEPTED')}>Accept</button>
+                                        <button className="btn btn-danger btn-sm" onClick={() => handleRespond(p.id, 'DECLINED')}>Decline</button>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>}
+                    {declinedList.length > 0 && (
+                        <>
+                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-5 mb-2">Declined</p>
+                            <ul className="divide-y divide-gray-100">
+                                {declinedList.map(p => (
+                                    <li key={p.id} className="flex justify-between items-center py-3">
+                                        <span className="font-semibold">{p.username}</span>
+                                        <button className="btn btn-info btn-sm" onClick={() => handleReinvite(p.id)}>Re-invite</button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </>
+                    )}
+                </Modal>
+            )}
+
+            {/* Members Modal (admin) */}
+            {showMembersModal && (
+                <Modal
+                    title={`Members — ${membersEvent?.title}`}
+                    onClose={() => setShowMembersModal(false)}
+                    footer={<button className="btn btn-secondary btn-md" onClick={() => setShowMembersModal(false)}>Close</button>}>
+                    {membersList.length === 0
+                        ? <p className="text-gray-400 mb-0">No accepted members yet.</p>
+                        : <ul className="divide-y divide-gray-100">
+                            {membersList.map(m => (
+                                <li key={m.id} className="flex items-center gap-2 py-2.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" className="text-gray-400 flex-shrink-0">
+                                        <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4z"/>
+                                    </svg>
+                                    <span className="font-semibold text-sm">{m.username}</span>
+                                    <span className="text-xs text-gray-400 ml-auto">
+                                        {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : ''}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>}
+                </Modal>
+            )}
+
+            {/* Leave Confirmation Modal */}
+            {showLeaveModal && (
+                <Modal
+                    title="Leave Event"
+                    onClose={() => setShowLeaveModal(false)}
+                    footer={
+                        <>
+                            <button className="btn btn-secondary btn-md" onClick={() => setShowLeaveModal(false)}>Cancel</button>
+                            <button className="btn btn-danger btn-md" onClick={handleLeave}>Leave</button>
+                        </>
+                    }>
+                    Are you sure you want to leave <strong>{eventToLeave?.title}</strong>?
+                </Modal>
             )}
         </div>
     )
