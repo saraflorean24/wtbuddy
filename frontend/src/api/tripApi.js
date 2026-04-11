@@ -58,9 +58,50 @@ export const replaceStops = async (tripId, stops) => {
     return response.data
 }
 
+export const getTripMembers = async (tripId) => {
+    const response = await api.get(`/trips/${tripId}/members`)
+    return response.data
+}
+
 export const getMyMembership = async (tripId) => {
     const response = await api.get(`/trips/${tripId}/my-membership`, {
         validateStatus: (s) => s === 200 || s === 204,
     })
     return response.status === 200 ? response.data : null
+}
+
+export const cancelOrLeave = async (memberId) => {
+    await api.delete(`/trips/members/${memberId}`)
+}
+
+export const getDeclinedRequests = async (tripId) => {
+    const response = await api.get(`/trips/${tripId}/declined`)
+    return response.data
+}
+
+export const reinviteUser = async (memberId) => {
+    const response = await api.post(`/trips/members/${memberId}/reinvite`)
+    return response.data
+}
+
+export const acceptInvitation = async (memberId) => {
+    const response = await api.post(`/trips/members/${memberId}/accept-invite`)
+    return response.data
+}
+
+export const declineInvitation = async (memberId) => {
+    await api.post(`/trips/members/${memberId}/decline-invite`)
+}
+
+export const subscribeToSpot = async (tripId) => {
+    await api.post(`/trips/${tripId}/subscribe`)
+}
+
+export const unsubscribeFromSpot = async (tripId) => {
+    await api.delete(`/trips/${tripId}/subscribe`)
+}
+
+export const isSubscribedToSpot = async (tripId) => {
+    const response = await api.get(`/trips/${tripId}/subscribe`)
+    return response.data
 }

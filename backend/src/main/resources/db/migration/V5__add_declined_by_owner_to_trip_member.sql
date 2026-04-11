@@ -1,0 +1,1 @@
+ALTER TABLE trip_member ADD COLUMN declined_by_owner BOOLEAN NOT NULL DEFAULT FALSE;

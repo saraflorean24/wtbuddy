@@ -14,6 +14,7 @@ public class TripMemberResponse {
     private Long userId;
     private String username;
     private TripMemberStatus status;
+    private Boolean declinedByOwner;
     private LocalDateTime joinedAt;
     private LocalDateTime updatedAt;
 }

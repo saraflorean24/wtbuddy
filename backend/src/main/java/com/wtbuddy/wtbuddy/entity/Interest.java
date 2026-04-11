@@ -1,5 +1,6 @@
 package com.wtbuddy.wtbuddy.entity;
 
+import com.wtbuddy.wtbuddy.enums.InterestCategory;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -20,6 +21,7 @@ public class Interest {
     @Column(name = "name", nullable = false, unique = true, length = 100)
     private String name;
 
-    @Column(name = "category", length = 100)
-    private String category;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", length = 50)
+    private InterestCategory category;
 }

@@ -1,5 +1,6 @@
 package com.wtbuddy.wtbuddy.dto.response.interest;
 
+import com.wtbuddy.wtbuddy.enums.InterestCategory;
 import lombok.Builder;
 import lombok.Data;
 
@@ -8,5 +9,5 @@ import lombok.Data;
 public class InterestResponse {
     private Long id;
     private String name;
-    private String category;
+    private InterestCategory category;
 }
