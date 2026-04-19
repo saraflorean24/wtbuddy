@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getEvents, createEvent, updateEvent, deleteEvent, joinEvent, leaveEvent, getPendingParticipants, respondToParticipant, getAcceptedParticipants, getDeclinedParticipants, reinviteParticipant, acceptEventInvitation, declineEventInvitation } from '../api/eventApi'
+import { useSearchParams } from 'react-router-dom'
+import { getEvents, getEventById, createEvent, updateEvent, deleteEvent, joinEvent, leaveEvent, getPendingParticipants, respondToParticipant, getAcceptedParticipants, getDeclinedParticipants, reinviteParticipant, acceptEventInvitation, declineEventInvitation } from '../api/eventApi'
 import { useAuth } from '../context/AuthContext'
 
 function Pagination({ currentPage, totalPages, onChange }) {
@@ -32,6 +33,7 @@ function Modal({ title, onClose, children, footer, size = 'md' }) {
 
 function EventsPage() {
     const { user } = useAuth()
+    const [searchParams] = useSearchParams()
     const isAdmin = user?.role === 'ADMIN'
 
     const [events,      setEvents]      = useState([])
@@ -59,7 +61,19 @@ function EventsPage() {
     const [membersEvent,     setMembersEvent]     = useState(null)
     const [membersList,      setMembersList]      = useState([])
 
+    const [showDetailModal, setShowDetailModal] = useState(false)
+    const [detailEvent,     setDetailEvent]     = useState(null)
+
     useEffect(() => { fetchEvents() }, [currentPage, search])
+
+    // Auto-open detail modal when navigated from dashboard with ?open=id
+    useEffect(() => {
+        const openId = searchParams.get('open')
+        if (!openId) return
+        getEventById(Number(openId))
+            .then(ev => { setDetailEvent(ev); setShowDetailModal(true) })
+            .catch(() => {})
+    }, [])
 
     const fetchEvents = async () => {
         setLoading(true)
@@ -416,6 +430,41 @@ function EventsPage() {
                         </>
                     }>
                     Are you sure you want to leave <strong>{eventToLeave?.title}</strong>?
+                </Modal>
+            )}
+
+            {/* Event Detail Modal (opened via ?open=id from dashboard) */}
+            {showDetailModal && detailEvent && (
+                <Modal
+                    title={detailEvent.title}
+                    onClose={() => setShowDetailModal(false)}
+                    footer={<button className="btn btn-secondary btn-md" onClick={() => setShowDetailModal(false)}>Close</button>}>
+                    <div className="space-y-3 text-sm text-gray-700">
+                        {detailEvent.description && <p className="text-gray-600 leading-relaxed">{detailEvent.description}</p>}
+                        <div className="grid grid-cols-2 gap-3 pt-1">
+                            {detailEvent.location && (
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Location</p>
+                                    <p>{detailEvent.location}</p>
+                                </div>
+                            )}
+                            <div>
+                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Date</p>
+                                <p>{new Date(detailEvent.eventDate).toLocaleString()}</p>
+                            </div>
+                            {detailEvent.maxParticipants != null && (
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Spots left</p>
+                                    <p>{detailEvent.maxParticipants - (detailEvent.participantCount || 0)}</p>
+                                </div>
+                            )}
+                            <div>
+                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Organizer</p>
+                                <p>@{detailEvent.organizerUsername}</p>
+                            </div>
+                        </div>
+                        <div className="pt-2">{renderAction(detailEvent)}</div>
+                    </div>
                 </Modal>
             )}
         </div>
