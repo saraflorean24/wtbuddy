@@ -45,24 +45,8 @@ docker-compose up -d wtbuddy-db
 
 Flyway will automatically run all migrations and seed data on first backend startup.
 
-### 3. Configure environment variables
 
-The backend requires two environment variables. Set them before running:
-
-```bash
-export JWT_SECRET=your_base64_encoded_secret_key_minimum_32_chars
-export JWT_EXPIRATION=86400000
-```
-
-> `JWT_EXPIRATION` is in milliseconds. `86400000` = 24 hours.
-
-On Windows (Command Prompt):
-```cmd
-set JWT_SECRET=your_base64_encoded_secret_key_minimum_32_chars
-set JWT_EXPIRATION=86400000
-```
-
-### 4. Run the backend
+### 3. Run the backend
 
 ```bash
 cd backend
@@ -71,7 +55,7 @@ mvn spring-boot:run
 
 The backend starts on **http://localhost:8080**
 
-### 5. Run the frontend
+### 4. Run the frontend
 
 ```bash
 cd frontend
