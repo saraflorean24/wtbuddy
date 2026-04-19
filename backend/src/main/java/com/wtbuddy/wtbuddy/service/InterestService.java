@@ -49,6 +49,13 @@ public class InterestService {
                 .toList();
     }
 
+    public List<InterestResponse> getUserInterestsByUserId(Long userId) {
+        return userInterestRepository.findByUserId(userId)
+                .stream()
+                .map(ui -> mapToResponse(ui.getInterest()))
+                .toList();
+    }
+
     @Transactional
     public InterestResponse createInterest(CreateInterestRequest request) {
         if (interestRepository.findAll().stream()

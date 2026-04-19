@@ -39,6 +39,12 @@ public class InterestController {
         return ResponseEntity.ok(interestService.createInterest(request));
     }
 
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<InterestResponse>> getUserInterestsByUserId(
+            @PathVariable Long userId) {
+        return ResponseEntity.ok(interestService.getUserInterestsByUserId(userId));
+    }
+
     @GetMapping("/me")
     public ResponseEntity<List<InterestResponse>> getUserInterests(
             @AuthenticationPrincipal UserDetails userDetails) {

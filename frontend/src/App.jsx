@@ -5,10 +5,13 @@ import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import SetupProfilePage from './pages/SetupProfilePage'
+import ProfilePage from './pages/ProfilePage'
+import DashboardPage from './pages/DashboardPage'
 import EventsPage from './pages/EventsPage'
 import TripsPage from './pages/TripsPage'
 import NotificationsPage from './pages/NotificationsPage.jsx'
 import FeedbackPage from './pages/FeedbackPage.jsx'
+import FriendsPage from './pages/FriendsPage.jsx'
 
 // Requires login. If profile is not yet complete, locks user to /setup-profile.
 const ProtectedRoute = ({ children }) => {
@@ -24,19 +27,23 @@ function App() {
 
     const isPublicPage = ['/', '/login', '/register', '/setup-profile'].includes(pathname)
 
+
     return (
         <>
             {token && !isPublicPage && <Navbar />}
             <div className={token && !isPublicPage ? 'w-full px-4 mt-6' : ''}>
                 <Routes>
-                    <Route path="/" element={token ? <Navigate to="/events" /> : <HomePage />} />
-                    <Route path="/login" element={token ? <Navigate to="/events" /> : <LoginPage />} />
-                    <Route path="/register" element={token ? <Navigate to="/events" /> : <RegisterPage />} />
+                    <Route path="/" element={token ? <Navigate to="/home" /> : <HomePage />} />
+                    <Route path="/home" element={
+                        <ProtectedRoute><DashboardPage /></ProtectedRoute>
+                    } />
+                    <Route path="/login" element={token ? <Navigate to="/home" /> : <LoginPage />} />
+                    <Route path="/register" element={token ? <Navigate to="/home" /> : <RegisterPage />} />
                     <Route path="/setup-profile" element={
                         !token
                             ? <Navigate to="/login" />
                             : user?.profileComplete
-                                ? <Navigate to="/events" />
+                                ? <Navigate to="/home" />
                                 : <SetupProfilePage />
                     } />
                     <Route path="/events" element={
@@ -50,6 +57,12 @@ function App() {
                     } />
                     <Route path="/feedback" element={
                         <ProtectedRoute><FeedbackPage /></ProtectedRoute>
+                    } />
+                    <Route path="/profile/:id" element={
+                        <ProtectedRoute><ProfilePage /></ProtectedRoute>
+                    } />
+                    <Route path="/friends" element={
+                        <ProtectedRoute><FriendsPage /></ProtectedRoute>
                     } />
                 </Routes>
             </div>

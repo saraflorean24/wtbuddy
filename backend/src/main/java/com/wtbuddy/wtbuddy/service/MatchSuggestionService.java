@@ -16,6 +16,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.dao.DataIntegrityViolationException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -32,7 +34,6 @@ public class MatchSuggestionService {
     private final UserInterestRepository userInterestRepository;
     private final FriendshipRepository friendshipRepository;
 
-    @Transactional
     public List<MatchSuggestionResponse> generateSuggestions(String email) {
         User currentUser = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -64,16 +65,20 @@ public class MatchSuggestionService {
 
             String reason = buildReason(currentProfile, currentInterestIds, otherProfile, otherUser);
 
-            MatchSuggestion suggestion = MatchSuggestion.builder()
-                    .user(currentUser)
-                    .suggestedUser(otherUser)
-                    .compatibilityScore(score)
-                    .reason(reason)
-                    .isDismissed(false)
-                    .build();
+            try {
+                MatchSuggestion suggestion = MatchSuggestion.builder()
+                        .user(currentUser)
+                        .suggestedUser(otherUser)
+                        .compatibilityScore(score)
+                        .reason(reason)
+                        .isDismissed(false)
+                        .build();
 
-            matchSuggestionRepository.save(suggestion);
-            suggestions.add(mapToResponse(suggestion, otherUser, otherProfile));
+                matchSuggestionRepository.save(suggestion);
+                suggestions.add(mapToResponse(suggestion, otherUser, otherProfile));
+            } catch (DataIntegrityViolationException ignored) {
+                // Duplicate — already exists, skip
+            }
         }
 
         return suggestions;
@@ -182,6 +187,9 @@ public class MatchSuggestionService {
                 .suggestedUserId(suggestedUser.getId())
                 .suggestedUsername(suggestedUser.getUsername())
                 .suggestedFullName(suggestedProfile != null ? suggestedProfile.getFullName() : null)
+                .profilePhotoUrl(suggestedProfile != null ? suggestedProfile.getProfilePhotoUrl() : null)
+                .jobType(suggestedProfile != null ? suggestedProfile.getJobType() : null)
+                .jobCity(suggestedProfile != null ? suggestedProfile.getJobCity() : null)
                 .compatibilityScore(suggestion.getCompatibilityScore())
                 .reason(suggestion.getReason())
                 .isDismissed(suggestion.getIsDismissed())
