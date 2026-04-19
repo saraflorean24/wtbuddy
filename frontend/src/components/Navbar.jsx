@@ -1,11 +1,62 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { getUnreadCount } from '../api/notificationApi'
 import { IoNotificationsOutline } from 'react-icons/io5'
+import { UserIcon, ArrowLeftStartOnRectangleIcon, UserGroupIcon } from '@heroicons/react/24/outline'
+
+function UserMenu({ username, onLogout, userId, isAdmin }) {
+    const [open, setOpen] = useState(false)
+    const ref = useRef(null)
+    const hideTimer = useRef(null)
+
+    const show = () => { clearTimeout(hideTimer.current); setOpen(true) }
+    const hide = () => { hideTimer.current = setTimeout(() => setOpen(false), 150) }
+
+    useEffect(() => () => clearTimeout(hideTimer.current), [])
+
+    return (
+        <div ref={ref} className="relative" onMouseEnter={show} onMouseLeave={hide}>
+    <span className="text-gray-200 text-sm flex items-center gap-1 cursor-pointer select-none">
+        <UserIcon className="w-4 h-4"/>
+        {username}
+    </span>
+
+            {open && (
+                <div
+                    className="absolute right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-100 py-1 min-w-[160px]"
+                    style={{zIndex: 50, top: '100%'}}
+                    onMouseEnter={show}
+                    onMouseLeave={hide}>
+                    <Link
+                        to={`/profile/${userId}`}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 no-underline whitespace-nowrap">
+                        <UserIcon className="w-4 h-4"/>
+                        View your profile
+                    </Link>
+                    {!isAdmin && (
+                        <Link
+                            to="/friends"
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 no-underline whitespace-nowrap">
+                            <UserGroupIcon className="w-4 h-4"/>
+                            My Friends
+                        </Link>
+                    )}
+                    <div className="border-t border-gray-100 my-1"/>
+                    <button
+                        onClick={onLogout}
+                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 text-left">
+                        <ArrowLeftStartOnRectangleIcon className="w-4 h-4"/>
+                        Logout
+                    </button>
+                </div>
+            )}
+        </div>
+    )
+}
 
 function Navbar() {
-    const { logout, user } = useAuth()
+    const {logout, user} = useAuth()
     const navigate = useNavigate()
     const location = useLocation()
     const [unreadCount, setUnreadCount] = useState(0)
@@ -25,7 +76,8 @@ function Navbar() {
         try {
             const count = await getUnreadCount()
             setUnreadCount(count)
-        } catch { /* silently ignore */ }
+        } catch { /* silently ignore */
+        }
     }
 
     const handleLogout = () => {
@@ -43,13 +95,14 @@ function Navbar() {
     }
 
     return (
-        <nav className="flex items-center px-4 h-14" style={{ backgroundColor: '#3b0764' }}>
+        <nav className="flex items-center px-4 h-14" style={{backgroundColor: '#3b0764'}}>
             <Link className="font-bold text-white text-lg mr-6 no-underline hover:text-white" to="/">
                 WTBuddy
             </Link>
 
             {/* Left links */}
             <div className="flex items-center gap-1 flex-1">
+                {navLink('/home', 'Home')}
                 {navLink('/events', 'Events')}
                 {navLink('/trips', 'Trips')}
                 {navLink('/feedback', 'Feedback')}
@@ -73,18 +126,7 @@ function Navbar() {
                     )}
                 </Link>
 
-                {/* Username */}
-                <span className="text-gray-200 text-sm flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
-                        fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.029 10 8 10c-2.029 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
-                    </svg>
-                    {user?.username}
-                </span>
-
-                <button className="btn btn-outline-light btn-sm" onClick={handleLogout}>
-                    Logout
-                </button>
+                <UserMenu username={user?.username} userId={user?.id} onLogout={handleLogout} isAdmin={user?.role === 'ADMIN'} />
             </div>
         </nav>
     )

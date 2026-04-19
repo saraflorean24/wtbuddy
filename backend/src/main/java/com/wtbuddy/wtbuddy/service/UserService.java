@@ -76,6 +76,7 @@ public class UserService {
         return UserProfileResponse.builder()
                 .id(profile.getId())
                 .userId(profile.getUser().getId())
+                .username(profile.getUser().getUsername())
                 .fullName(profile.getFullName())
                 .bio(profile.getBio())
                 .jobCity(profile.getJobCity())

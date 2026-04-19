@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useAuth } from './context/AuthContext'
+import { useAuth } from './context/useAuth'
 import Navbar from './components/Navbar'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
@@ -13,11 +13,11 @@ import NotificationsPage from './pages/NotificationsPage.jsx'
 import FeedbackPage from './pages/FeedbackPage.jsx'
 import FriendsPage from './pages/FriendsPage.jsx'
 
-// Requires login. If profile is not yet complete, locks user to /setup-profile.
+// Requires login. If profile is not yet complete, locks user to /setup-profile (admins skip this).
 const ProtectedRoute = ({ children }) => {
     const { token, user } = useAuth()
     if (!token) return <Navigate to="/login" />
-    if (!user?.profileComplete) return <Navigate to="/setup-profile" />
+    if (!user?.profileComplete && user?.role !== 'ADMIN') return <Navigate to="/setup-profile" />
     return children
 }
 
@@ -42,7 +42,7 @@ function App() {
                     <Route path="/setup-profile" element={
                         !token
                             ? <Navigate to="/login" />
-                            : user?.profileComplete
+                            : (user?.profileComplete || user?.role === 'ADMIN')
                                 ? <Navigate to="/home" />
                                 : <SetupProfilePage />
                     } />

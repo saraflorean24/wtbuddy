@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
+import { useSearchParams } from 'react-router-dom'
 import {
     GoogleMap, useJsApiLoader, Marker, DirectionsRenderer, InfoWindow,
 } from '@react-google-maps/api'
 import {
-    getTrips, getMyTrips, createTrip, updateTrip, deleteTrip,
+    getTrips, getMyTrips, getTripById, createTrip, updateTrip, deleteTrip,
     getTripStops, replaceStops, requestToJoin, respondToJoinRequest,
     getPendingRequests, getMyMembership, getTripMembers,
     cancelOrLeave, subscribeToSpot, unsubscribeFromSpot, isSubscribedToSpot,
@@ -52,6 +53,7 @@ const sortedForRoute = (arr) => groupByCity(arr)
 
 function TripsPage() {
     const { user } = useAuth()
+    const [searchParams] = useSearchParams()
 
     const [trips,       setTrips]       = useState([])
     const [totalPages,  setTotalPages]  = useState(0)
@@ -105,6 +107,15 @@ function TripsPage() {
     })
 
     useEffect(() => { fetchTrips() }, [currentPage, search, viewMode])
+
+    // Auto-open detail modal when navigated from dashboard with ?open=id
+    useEffect(() => {
+        const openId = searchParams.get('open')
+        if (!openId) return
+        getTripById(Number(openId))
+            .then(trip => handleOpenDetail(trip))
+            .catch(() => {})
+    }, [])
 
     useEffect(() => {
         if (!mapsLoaded || !window.google) return

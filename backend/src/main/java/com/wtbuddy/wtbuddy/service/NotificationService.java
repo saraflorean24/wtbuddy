@@ -68,6 +68,7 @@ public class NotificationService {
                 .type(notification.getType())
                 .message(notification.getMessage())
                 .isRead(notification.getIsRead())
+                .referenceId(notification.getReferenceId())
                 .createdAt(notification.getCreatedAt())
                 .build();
     }
