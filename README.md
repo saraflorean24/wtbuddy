@@ -43,11 +43,6 @@ The project uses PostgreSQL with the PostGIS extension. Start it with Docker:
 docker-compose up -d wtbuddy-db
 ```
 
-This creates a PostgreSQL instance on port `5432` with:
-- Database: `wtbuddy`
-- Username: `wtbuddy`
-- Password: `wtbuddy123`
-
 Flyway will automatically run all migrations and seed data on first backend startup.
 
 ### 3. Configure environment variables
