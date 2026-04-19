@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { getNotifications, markAsRead, markAllAsRead } from '../api/notificationApi'
+import { updateFriendshipStatus } from '../api/friendshipApi'
 
 const TYPE_META = {
     TRIP_JOIN_REQUEST:   { icon: '🧳', color: 'primary',   label: 'Join Request' },
@@ -42,6 +44,7 @@ function NotificationsPage() {
     const [currentPage,   setCurrentPage]   = useState(0)
     const [loading,       setLoading]       = useState(false)
     const [filter,        setFilter]        = useState('all')
+    const [responding,    setResponding]    = useState(null) // friendshipId being acted on
 
     useEffect(() => { fetchNotifications() }, [currentPage])
 
@@ -63,6 +66,18 @@ function NotificationsPage() {
     const handleMarkAllRead = async () => {
         await markAllAsRead()
         setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
+    }
+
+    const handleFriendResponse = async (n, status) => {
+        setResponding(n.referenceId)
+        try {
+            await updateFriendshipStatus(n.referenceId, status)
+            await markAsRead(n.id)
+            setNotifications(prev => prev.map(x =>
+                x.id === n.id ? { ...x, isRead: true, _responded: status } : x
+            ))
+        } catch { /* ignore */ }
+        finally { setResponding(null) }
     }
 
     const displayed = filter === 'unread' ? notifications.filter(n => !n.isRead) : notifications
@@ -133,10 +148,43 @@ function NotificationsPage() {
                                     </div>
                                     <p className="mb-0 text-sm text-gray-800">{n.message}</p>
                                     <p className="text-xs text-gray-400 mt-0.5">{timeAgo(n.createdAt)}</p>
+
+                                    {/* Friend request actions */}
+                                    {n.type === 'FRIEND_REQUEST' && n.referenceId && (
+                                        n._responded ? (
+                                            <p className="text-xs mt-2 font-medium text-gray-500">
+                                                {n._responded === 'ACCEPTED' ? '✓ Accepted' : '✗ Declined'}
+                                            </p>
+                                        ) : (
+                                            <div className="flex gap-2 mt-2">
+                                                <button
+                                                    className="btn btn-success btn-sm"
+                                                    disabled={responding === n.referenceId}
+                                                    onClick={() => handleFriendResponse(n, 'ACCEPTED')}>
+                                                    Accept
+                                                </button>
+                                                <button
+                                                    className="btn btn-outline-danger btn-sm"
+                                                    disabled={responding === n.referenceId}
+                                                    onClick={() => handleFriendResponse(n, 'DECLINED')}>
+                                                    Decline
+                                                </button>
+                                            </div>
+                                        )
+                                    )}
+
+                                    {/* Friend accepted — link to their profile */}
+                                    {n.type === 'FRIEND_ACCEPTED' && n.referenceId && (
+                                        <Link
+                                            to={`/profile/${n.referenceId}`}
+                                            className="text-xs text-violet-600 hover:underline mt-1 block no-underline">
+                                            View profile →
+                                        </Link>
+                                    )}
                                 </div>
 
                                 {/* Mark read button */}
-                                {!n.isRead && (
+                                {!n.isRead && n.type !== 'FRIEND_REQUEST' && (
                                     <button
                                         className="btn btn-secondary btn-sm flex-shrink-0 text-xs"
                                         onClick={() => handleMarkRead(n.id)}>
