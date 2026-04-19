@@ -25,15 +25,16 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
                                           @Param("user2Id") Long user2Id);
 
     @Query("SELECT CASE WHEN COUNT(f) > 0 THEN true ELSE false END FROM Friendship f WHERE " +
-            "(f.requester.id = :user1Id AND f.addressee.id = :user2Id) OR " +
-            "(f.requester.id = :user2Id AND f.addressee.id = :user1Id)")
+            "((f.requester.id = :user1Id AND f.addressee.id = :user2Id) OR " +
+            "(f.requester.id = :user2Id AND f.addressee.id = :user1Id)) " +
+            "AND f.status IN (com.wtbuddy.wtbuddy.enums.FriendshipStatus.PENDING, com.wtbuddy.wtbuddy.enums.FriendshipStatus.ACCEPTED)")
     boolean existsBetweenUsers(@Param("user1Id") Long user1Id,
                                @Param("user2Id") Long user2Id);
 
     @Query("SELECT CASE WHEN COUNT(f) > 0 THEN true ELSE false END FROM Friendship f WHERE " +
             "((f.requester.id = :user1Id AND f.addressee.id = :user2Id) OR " +
             "(f.requester.id = :user2Id AND f.addressee.id = :user1Id)) " +
-            "AND f.status = 'ACCEPTED'")
+            "AND f.status = com.wtbuddy.wtbuddy.enums.FriendshipStatus.ACCEPTED")
     boolean existsAcceptedBetweenUsers(@Param("user1Id") Long user1Id,
                                        @Param("user2Id") Long user2Id);
 }

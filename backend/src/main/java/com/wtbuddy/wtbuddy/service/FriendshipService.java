@@ -4,13 +4,17 @@ import com.wtbuddy.wtbuddy.dto.request.friendship.FriendshipActionRequest;
 import com.wtbuddy.wtbuddy.dto.request.friendship.FriendshipRequest;
 import com.wtbuddy.wtbuddy.dto.response.friendship.FriendshipResponse;
 import com.wtbuddy.wtbuddy.entity.Friendship;
+import com.wtbuddy.wtbuddy.entity.Notification;
 import com.wtbuddy.wtbuddy.entity.User;
 import com.wtbuddy.wtbuddy.enums.FriendshipStatus;
+import com.wtbuddy.wtbuddy.enums.NotificationType;
 import com.wtbuddy.wtbuddy.exception.AlreadyExistsException;
 import com.wtbuddy.wtbuddy.exception.BadRequestException;
 import com.wtbuddy.wtbuddy.exception.ResourceNotFoundException;
 import com.wtbuddy.wtbuddy.exception.UnauthorizedException;
 import com.wtbuddy.wtbuddy.repository.FriendshipRepository;
+import com.wtbuddy.wtbuddy.repository.MatchSuggestionRepository;
+import com.wtbuddy.wtbuddy.repository.NotificationRepository;
 import com.wtbuddy.wtbuddy.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,6 +28,8 @@ public class FriendshipService {
 
     private final FriendshipRepository friendshipRepository;
     private final UserRepository userRepository;
+    private final NotificationRepository notificationRepository;
+    private final MatchSuggestionRepository matchSuggestionRepository;
     private final EmailService emailService;
 
     @Transactional
@@ -42,6 +48,10 @@ public class FriendshipService {
             throw new AlreadyExistsException("Friendship already exists between these users");
         }
 
+        // Clean up any previous DECLINED record so a new request can be stored
+        friendshipRepository.findBetweenUsers(requester.getId(), addressee.getId())
+                .ifPresent(friendshipRepository::delete);
+
         Friendship friendship = Friendship.builder()
                 .requester(requester)
                 .addressee(addressee)
@@ -49,7 +59,15 @@ public class FriendshipService {
                 .build();
 
         friendshipRepository.save(friendship);
+
+        // Dismiss suggestions in both directions so neither user sees the other as a suggestion
+        dismissSuggestionIfExists(requester.getId(), addressee.getId());
+        dismissSuggestionIfExists(addressee.getId(), requester.getId());
+
         emailService.sendFriendRequestEmail(addressee.getEmail(), requester.getUsername());
+        notify(addressee, NotificationType.FRIEND_REQUEST,
+                requester.getUsername() + " sent you a friend request",
+                friendship.getId());
         return mapToResponse(friendship);
     }
 
@@ -77,6 +95,9 @@ public class FriendshipService {
 
         if (request.getStatus() == FriendshipStatus.ACCEPTED) {
             emailService.sendFriendAcceptedEmail(friendship.getRequester().getEmail(), currentUser.getUsername());
+            notify(friendship.getRequester(), NotificationType.FRIEND_ACCEPTED,
+                    currentUser.getUsername() + " accepted your friend request",
+                    currentUser.getId());
         }
 
         return mapToResponse(friendship);
@@ -116,6 +137,24 @@ public class FriendshipService {
         }
 
         friendshipRepository.delete(friendship);
+    }
+
+    private void dismissSuggestionIfExists(Long userId, Long suggestedUserId) {
+        matchSuggestionRepository.findByUserIdAndSuggestedUserId(userId, suggestedUserId)
+                .ifPresent(s -> {
+                    s.setIsDismissed(true);
+                    matchSuggestionRepository.save(s);
+                });
+    }
+
+    private void notify(User user, NotificationType type, String message, Long referenceId) {
+        notificationRepository.save(Notification.builder()
+                .user(user)
+                .type(type)
+                .message(message)
+                .isRead(false)
+                .referenceId(referenceId)
+                .build());
     }
 
     private FriendshipResponse mapToResponse(Friendship friendship) {

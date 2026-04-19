@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { updateProfile, getAllInterests, addInterest } from '../api/userApi'
+import Autocomplete from '../components/Autocomplete'
 
 const JOB_TYPES = [
     { value: 'HOTEL',          label: 'Hotel' },
@@ -36,66 +37,6 @@ const CATEGORY_LABELS = {
 
 const STEPS = ['Your Work', 'About You', 'Interests']
 
-// ── Autocomplete component ────────────────────────────────────────────────────
-function Autocomplete({ value, onChange, options, loading, placeholder, disabled, openZIndex = 20 }) {
-    const [query, setQuery]   = useState(value)
-    const [open, setOpen]     = useState(false)
-    const containerRef        = useRef(null)
-
-    // Keep local query in sync when parent resets value
-    useEffect(() => { setQuery(value) }, [value])
-
-    // Close dropdown on outside click
-    useEffect(() => {
-        const handler = (e) => {
-            if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false)
-        }
-        document.addEventListener('mousedown', handler)
-        return () => document.removeEventListener('mousedown', handler)
-    }, [])
-
-    const filtered = query.length >= 1
-        ? options.filter(o => o.toLowerCase().includes(query.toLowerCase()))
-        : options
-
-    const select = (val) => {
-        setQuery(val)
-        onChange(val)
-        setOpen(false)
-    }
-
-    return (
-        <div ref={containerRef} className="relative" style={{ zIndex: open ? openZIndex : 'auto' }}>
-            <input
-                type="text"
-                className="form-control"
-                placeholder={placeholder}
-                value={query}
-                disabled={disabled}
-                onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true) }}
-                onFocus={() => setOpen(true)}
-            />
-            {loading && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">Loading…</span>
-            )}
-            {open && !loading && filtered.length > 0 && (
-                <ul
-                    className="absolute w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1"
-                    style={{ maxHeight: '220px', overflowY: 'auto', zIndex: 'inherit' }}>
-                    {filtered.map(opt => (
-                        <li
-                            key={opt}
-                            className="px-3 py-2 text-sm cursor-pointer hover:bg-violet-50 hover:text-violet-700"
-                            onMouseDown={() => select(opt)}>
-                            {opt}
-                        </li>
-                    ))}
-                </ul>
-            )}
-        </div>
-    )
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 function SetupProfilePage() {
     const { user, completeProfile } = useAuth()
@@ -121,7 +62,10 @@ function SetupProfilePage() {
         setInterestsLoading(true)
         getAllInterests()
             .then(data => setAllInterests(data))
-            .catch(() => {})
+            .catch((err) => {
+                console.error('Failed to load interests:', err)
+                setError('Could not load interests. Make sure the backend is running.')
+            })
             .finally(() => setInterestsLoading(false))
     }, [])
 
