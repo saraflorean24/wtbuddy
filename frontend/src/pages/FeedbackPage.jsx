@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { submitFeedback, getAllFeedback } from '../api/feedbackApi'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 
 const CATEGORIES = [
     { value: 'GENERAL',          label: 'General' },

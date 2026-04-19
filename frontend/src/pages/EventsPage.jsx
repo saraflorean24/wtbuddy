@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getEvents, getEventById, createEvent, updateEvent, deleteEvent, joinEvent, leaveEvent, getPendingParticipants, respondToParticipant, getAcceptedParticipants, getDeclinedParticipants, reinviteParticipant, acceptEventInvitation, declineEventInvitation } from '../api/eventApi'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 
 function Pagination({ currentPage, totalPages, onChange }) {
     if (totalPages <= 1) return null

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { getProfile, updateProfile, getAllInterests, getMyInterests, getUserInterests, addInterest, removeInterest } from '../api/userApi'
 import { UserIcon } from '@heroicons/react/24/solid'
 import Autocomplete from '../components/Autocomplete'
@@ -168,7 +168,7 @@ function ProfilePage() {
 
     if (loading) return <div className="text-center py-16 text-gray-400">Loading…</div>
     if (error)   return <div className="text-center py-16 text-red-500">{error}</div>
-    if (!profile) return null
+    if (!profile) return <div className="text-center py-16 text-gray-400">Profile not found.</div>
 
     const byCategory = (editing ? allInterests : interests).reduce((acc, i) => {
         const cat = i.category || 'OTHER'

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { login } from '../api/authApi'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 
 function LoginPage() {
     const [email, setEmail] = useState('')
@@ -19,7 +19,7 @@ function LoginPage() {
         try {
             const data = await login(email, password)
             authLogin({ id: data.id, email: data.email, username: data.username, role: data.role, profileComplete: data.profileComplete }, data.token)
-            navigate(data.profileComplete ? '/events' : '/setup-profile')
+            navigate(data.role === 'ADMIN' || data.profileComplete ? '/events' : '/setup-profile')
         } catch {
             setError('Invalid email or password')
         } finally {

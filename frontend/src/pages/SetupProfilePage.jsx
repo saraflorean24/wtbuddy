@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { updateProfile, getAllInterests, addInterest } from '../api/userApi'
 import Autocomplete from '../components/Autocomplete'
 

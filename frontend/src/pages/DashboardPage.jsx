@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { generateSuggestions, getSuggestions, dismissSuggestion } from '../api/matchApi'
 import { sendFriendRequest } from '../api/friendshipApi'
 import { getEvents } from '../api/eventApi'
@@ -177,10 +177,11 @@ function DashboardPage() {
     const [trips,       setTrips]       = useState([])
     const [loading,     setLoading]     = useState(true)
 
+    const isAdmin = user?.role === 'ADMIN'
+
     useEffect(() => {
         const load = async () => {
-            const [suggestionsRes, eventsRes, tripsRes] = await Promise.allSettled([
-                getSuggestions(0, 8),
+            const [eventsRes, tripsRes] = await Promise.allSettled([
                 getEvents(0, 3),
                 getTrips(0, 3),
             ])
@@ -188,20 +189,17 @@ function DashboardPage() {
             if (eventsRes.status === 'fulfilled')  setEvents(eventsRes.value.content ?? [])
             if (tripsRes.status === 'fulfilled')   setTrips(tripsRes.value.content ?? [])
 
-            // Always generate suggestions so new users who joined after initial load appear
-            try { await generateSuggestions() } catch { /* ignore */ }
-            try {
-                const fresh = await getSuggestions(0, 8)
-                setSuggestions(fresh.content ?? [])
-            } catch {
-                if (suggestionsRes.status === 'fulfilled') {
-                    setSuggestions(suggestionsRes.value.content ?? [])
-                }
+            if (!isAdmin) {
+                try { await generateSuggestions() } catch { /* ignore */ }
+                try {
+                    const fresh = await getSuggestions(0, 8)
+                    setSuggestions(fresh.content ?? [])
+                } catch { /* ignore */ }
             }
 
             setLoading(false)
         }
-        load()
+        load().catch(() => setLoading(false))
     }, [])
 
     const handleDismiss = async (id) => {
@@ -224,24 +222,26 @@ function DashboardPage() {
                 <p className="text-gray-500 text-sm mt-1">Here's what's happening on WTBuddy.</p>
             </div>
 
-            {/* Friend suggestions */}
-            <section>
-                <SectionHeader title="Friends suggestions" />
-                {suggestions.length === 0 ? (
-                    <p className="text-gray-400 text-sm">No suggestions right now — check back after more users join!</p>
-                ) : (
-                    <div className="flex gap-4 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
-                        {suggestions.map(s => (
-                            <SuggestionCard
-                                key={s.id}
-                                suggestion={s}
-                                onDismiss={handleDismiss}
-                                onAdd={handleAdd}
-                            />
-                        ))}
-                    </div>
-                )}
-            </section>
+            {/* Friend suggestions — hidden for admin */}
+            {!isAdmin && (
+                <section>
+                    <SectionHeader title="Friends suggestions" />
+                    {suggestions.length === 0 ? (
+                        <p className="text-gray-400 text-sm">No suggestions right now — check back after more users join!</p>
+                    ) : (
+                        <div className="flex gap-4 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
+                            {suggestions.map(s => (
+                                <SuggestionCard
+                                    key={s.id}
+                                    suggestion={s}
+                                    onDismiss={handleDismiss}
+                                    onAdd={handleAdd}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </section>
+            )}
 
             {/* Events */}
             <section>

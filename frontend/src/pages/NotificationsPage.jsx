@@ -73,14 +73,13 @@ function NotificationsPage() {
         try {
             await updateFriendshipStatus(n.referenceId, status)
             await markAsRead(n.id)
-            setNotifications(prev => prev.map(x =>
-                x.id === n.id ? { ...x, isRead: true, _responded: status } : x
-            ))
+            setNotifications(prev => prev.filter(x => x.id !== n.id))
         } catch { /* ignore */ }
         finally { setResponding(null) }
     }
 
-    const displayed = filter === 'unread' ? notifications.filter(n => !n.isRead) : notifications
+    const displayed = (filter === 'unread' ? notifications.filter(n => !n.isRead) : notifications)
+        .filter(n => !(n.type === 'FRIEND_REQUEST' && n.isRead))
     const unreadCount = notifications.filter(n => !n.isRead).length
 
     return (

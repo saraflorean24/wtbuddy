@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { getUnreadCount } from '../api/notificationApi'
 import { IoNotificationsOutline } from 'react-icons/io5'
 import { UserIcon, ArrowLeftStartOnRectangleIcon, UserGroupIcon } from '@heroicons/react/24/outline'
 
-function UserMenu({ username, onLogout, userId }) {
+function UserMenu({ username, onLogout, userId, isAdmin }) {
     const [open, setOpen] = useState(false)
     const ref = useRef(null)
     const hideTimer = useRef(null)
@@ -34,12 +34,14 @@ function UserMenu({ username, onLogout, userId }) {
                         <UserIcon className="w-4 h-4"/>
                         View your profile
                     </Link>
-                    <Link
-                        to="/friends"
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 no-underline whitespace-nowrap">
-                        <UserGroupIcon className="w-4 h-4"/>
-                        My Friends
-                    </Link>
+                    {!isAdmin && (
+                        <Link
+                            to="/friends"
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 no-underline whitespace-nowrap">
+                            <UserGroupIcon className="w-4 h-4"/>
+                            My Friends
+                        </Link>
+                    )}
                     <div className="border-t border-gray-100 my-1"/>
                     <button
                         onClick={onLogout}
@@ -124,7 +126,7 @@ function Navbar() {
                     )}
                 </Link>
 
-                <UserMenu username={user?.username} userId={user?.id} onLogout={handleLogout} />
+                <UserMenu username={user?.username} userId={user?.id} onLogout={handleLogout} isAdmin={user?.role === 'ADMIN'} />
             </div>
         </nav>
     )
